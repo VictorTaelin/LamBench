@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "eval": "bun src/eval.ts",
+    "fix-score": "bun src/fix-score.ts",
     "test": "bun src/run.ts",
     "bench": "bun src/bench.ts"
   },
