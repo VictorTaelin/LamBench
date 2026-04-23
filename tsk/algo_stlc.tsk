@@ -1,0 +1,54 @@
+Type-check a simply-typed lambda calculus term. Given a
+Scott-encoded STLC term with type annotations, return a
+Church boolean: True if the term is well-typed in the
+empty context, False otherwise.
+
+Types use de Bruijn indices for base types:
+  Base(n)  = λbase.λarr.base(n)
+  Arr(a,b) = λbase.λarr.arr(a, b)
+
+Terms use de Bruijn indices for variables:
+  Lam(ty, body) = λlam.λapp.λvar.lam(ty, body)
+  App(fun, arg) = λlam.λapp.λvar.app(fun, arg)
+  Var(idx)      = λlam.λapp.λvar.var(idx)
+
+where n and idx are Scott nats:
+  Z = λs.λz.z, S(n) = λs.λz.s(n).
+
+Church booleans: True = λa.λb.a, False = λa.λb.b.
+
+Two types are equal iff they have identical structure.
+In App(f, x), f must have type Arr(A, B) and x must
+have type A; the result has type B.
+
+---
+
+@main(λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.z), λlam.λapp.λvar.var(λs.λz.z)))
+= λa.λb.a
+
+@main(λlam.λapp.λvar.var(λs.λz.z))
+= λa.λb.b
+
+@main(λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.z), λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.s(λs.λz.z)), λlam.λapp.λvar.var(λs.λz.s(λs.λz.z)))))
+= λa.λb.a
+
+@main(λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.z), λlam.λapp.λvar.app(λlam.λapp.λvar.var(λs.λz.z), λlam.λapp.λvar.var(λs.λz.z))))
+= λa.λb.b
+
+@main(λlam.λapp.λvar.app(λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.z), λlam.λapp.λvar.var(λs.λz.z)), λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.z), λlam.λapp.λvar.var(λs.λz.z))))
+= λa.λb.b
+
+@main(λlam.λapp.λvar.lam(λbase.λarr.arr(λbase.λarr.base(λs.λz.z), λbase.λarr.base(λs.λz.z)), λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.z), λlam.λapp.λvar.app(λlam.λapp.λvar.var(λs.λz.s(λs.λz.z)), λlam.λapp.λvar.var(λs.λz.z)))))
+= λa.λb.a
+
+@main(λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.z), λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.z), λlam.λapp.λvar.var(λs.λz.z))))
+= λa.λb.a
+
+@main(λlam.λapp.λvar.app(λlam.λapp.λvar.lam(λbase.λarr.arr(λbase.λarr.base(λs.λz.z), λbase.λarr.base(λs.λz.z)), λlam.λapp.λvar.var(λs.λz.z)), λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.z), λlam.λapp.λvar.var(λs.λz.z))))
+= λa.λb.a
+
+@main(λlam.λapp.λvar.lam(λbase.λarr.arr(λbase.λarr.base(λs.λz.z), λbase.λarr.base(λs.λz.z)), λlam.λapp.λvar.app(λlam.λapp.λvar.var(λs.λz.z), λlam.λapp.λvar.var(λs.λz.z))))
+= λa.λb.b
+
+@main(λlam.λapp.λvar.lam(λbase.λarr.base(λs.λz.z), λlam.λapp.λvar.var(λs.λz.s(λs.λz.z))))
+= λa.λb.b

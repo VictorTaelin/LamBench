@@ -1,0 +1,50 @@
+Determine whether a small CNF formula is satisfiable.
+Return True (λa.λb.a) if SAT, False (λa.λb.b) if UNSAT.
+
+Input: a Scott list of clauses. Each clause is a Scott
+list of literals. A literal is either:
+  Pos(n) = λp.λn.p(n)  — variable n is positive
+  Neg(n) = λp.λn.n(n)  — variable n is negated
+where n is a Scott nat giving the variable index.
+
+An empty formula (no clauses) is satisfiable. A formula
+with an empty clause is unsatisfiable.
+
+Scott nat: Z = λs.λz.z, S(n) = λs.λz.s(n).
+Scott list: Nil = λc.λn.n, Cons(h,t) = λc.λn.c(h,t).
+Church bool: True = λa.λb.a, False = λa.λb.b.
+
+---
+
+@main(λc.λn.n)
+= λa.λb.a
+
+@main(λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.n), λc.λn.n))
+= λa.λb.a
+
+@main(λc.λn.c(λc.λn.n, λc.λn.n))
+= λa.λb.b
+
+@main(λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.n), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.n), λc.λn.n)))
+= λa.λb.b
+
+@main(λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.n))))
+= λa.λb.a
+
+@main(λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.n)))))
+= λa.λb.b
+
+@main(λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n))), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n)), λc.λn.n))))
+= λa.λb.a
+
+@main(λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.n), λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.n), λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n)), λc.λn.n)))))))
+= λa.λb.b
+
+@main(λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))), λc.λn.n)), λc.λn.n)))))
+= λa.λb.a
+
+@main(λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n))), λc.λn.n)))))
+= λa.λb.a
+
+@main(λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.p(λs.λz.z), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.c(λp.λn.p(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.c(λc.λn.c(λp.λn.n(λs.λz.z), λc.λn.c(λp.λn.n(λs.λz.s(λs.λz.z)), λc.λn.n)), λc.λn.n)))))
+= λa.λb.b

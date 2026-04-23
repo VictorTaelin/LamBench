@@ -1,0 +1,55 @@
+Brainfuck interpreter. Given a program (Scott list of
+instructions) and an input stream (Scott list of Scott
+nats), return the output stream (Scott list of Scott nats).
+
+The tape is infinite in both directions. All cells start
+at zero. Cells hold natural numbers; Dec on zero stays
+at zero. The loop executes its body while the current
+cell is nonzero.
+
+Instruction encoding (7-variant Scott):
+  Right = λr.λl.λi.λd.λo.λn.λp.r
+  Left  = λr.λl.λi.λd.λo.λn.λp.l
+  Inc   = λr.λl.λi.λd.λo.λn.λp.i
+  Dec   = λr.λl.λi.λd.λo.λn.λp.d
+  Out   = λr.λl.λi.λd.λo.λn.λp.o
+  In    = λr.λl.λi.λd.λo.λn.λp.n
+  Loop(body) = λr.λl.λi.λd.λo.λn.λp.p(body)
+where body is itself a Scott list of instructions.
+
+Scott nat: Z = λs.λz.z, S(n) = λs.λz.s(n).
+Scott list: Nil = λc.λn.n, Cons(h,t) = λc.λn.c(h,t).
+
+@main takes (program, input) and returns the output list.
+
+---
+
+@main(λc.λn.n, λc.λn.n)
+= λa.λb.b
+
+@main(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.n)), λc.λn.n)
+= λa.λb.a(λc.λd.c(λe.λf.f), λc.λd.d)
+
+@main(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.n)))), λc.λn.n)
+= λa.λb.a(λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.j))), λc.λd.d)
+
+@main(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.n)))), λc.λn.n)
+= λa.λb.a(λc.λd.c(λe.λf.f), λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.j)), λe.λf.f))
+
+@main(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.r, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.l, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.n)))), λc.λn.n)
+= λa.λb.a(λc.λd.d, λc.λd.d)
+
+@main(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.p(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.d, λc.λn.n))), λc.λn.n)))), λc.λn.n)
+= λa.λb.a(λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.j))), λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.j)), λe.λf.e(λg.λh.g(λi.λj.j), λg.λh.h)))
+
+@main(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.n, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.n)), λc.λn.c(λs.λz.s(λs.λz.s(λs.λz.z)), λc.λn.n))
+= λa.λb.a(λc.λd.c(λe.λf.e(λg.λh.h)), λc.λd.d)
+
+@main(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.d, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.n)), λc.λn.n)
+= λa.λb.a(λc.λd.d, λc.λd.d)
+
+@main(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.p(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.d, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.r, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.i, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.l, λc.λn.n)))))), λc.λn.c(λr.λl.λi.λd.λo.λn.λp.r, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.n))))), λc.λn.n)
+= λa.λb.a(λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.i(λk.λl.l)))), λc.λd.d)
+
+@main(λc.λn.c(λr.λl.λi.λd.λo.λn.λp.n, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.n, λc.λn.c(λr.λl.λi.λd.λo.λn.λp.o, λc.λn.n)))), λc.λn.c(λs.λz.s(λs.λz.z), λc.λn.c(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n)))
+= λa.λb.a(λc.λd.c(λe.λf.f), λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.i(λk.λl.l))), λe.λf.f))

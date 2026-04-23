@@ -1,0 +1,50 @@
+Convex hull of 2D integer points.
+
+Input: a Scott list of points. Each point is a Scott
+pair λp.p(x, y) where x, y are Scott nats.
+
+Output: a Scott list of points on the convex hull in
+counter-clockwise order, starting from the
+lexicographically smallest point (smallest x first,
+then smallest y). Collinear boundary points are
+excluded — only true vertices of the hull.
+
+Degenerate cases: for 1 point return it; for 2 points
+return both in lex order; for all-collinear input
+return the two endpoints.
+
+Scott nat: Z = λs.λz.z, S(n) = λs.λz.s(n)
+Scott list: Nil = λc.λn.n, Cons(h,t) = λc.λn.c(h,t)
+Scott pair: P(x,y) = λp.p(x, y)
+
+---
+
+@main(λc.λn.c(λp.p(λs.λz.z, λs.λz.z), λc.λn.n))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.d)
+
+@main(λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))), λc.λn.c(λp.p(λs.λz.z, λs.λz.s(λs.λz.z)), λc.λn.n)))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.d(λf.λg.g)), λc.λd.c(λe.e(λf.λg.f(λh.λi.h(λj.λk.k)), λf.λg.f(λh.λi.h(λj.λk.j(λl.λm.m)))), λe.λf.f))
+
+@main(λc.λn.c(λp.p(λs.λz.z, λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.z), λs.λz.s(λs.λz.z)), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.h(λj.λk.k)), λf.λg.f(λh.λi.h(λj.λk.k))), λe.λf.f))
+
+@main(λc.λn.c(λp.p(λs.λz.z, λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))), λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.z), λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.h(λj.λk.j(λl.λm.m))), λf.λg.g), λe.λf.e(λg.g(λh.λi.h(λj.λk.k), λh.λi.h(λj.λk.j(λl.λm.m))), λg.λh.h)))
+
+@main(λc.λn.c(λp.p(λs.λz.z, λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.c(λp.p(λs.λz.z, λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n)))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.h(λj.λk.k)), λf.λg.g), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.m)), λh.λi.h(λj.λk.j(λl.λm.m))), λg.λh.g(λi.i(λj.λk.k, λj.λk.j(λl.λm.l(λn.λo.o))), λi.λj.j))))
+
+@main(λc.λn.c(λp.p(λs.λz.z, λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))), λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.z)), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))))), λc.λn.n)))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.o)))), λf.λg.g), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.m)), λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q))))), λg.λh.h)))
+
+@main(λc.λn.c(λp.p(λs.λz.z, λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))))), λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))))))), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))), λs.λz.s(λs.λz.z)), λc.λn.n))))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.s)))))), λf.λg.g), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.o))), λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.r(λt.λu.u))))))), λg.λh.h)))
+
+@main(λc.λn.c(λp.p(λs.λz.z, λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))), λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))), λc.λn.n)))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.o)))), λf.λg.g), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.m)), λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.o)))), λg.λh.h)))
+
+@main(λc.λn.c(λp.p(λs.λz.s(λs.λz.z), λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))), λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))), λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))))), λc.λn.c(λp.p(λs.λz.z, λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.n))))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.d(λf.λg.f(λh.λi.i))), λc.λd.c(λe.e(λf.λg.f(λh.λi.i), λf.λg.g), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.o))), λh.λi.i), λg.λh.g(λi.i(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.s)))), λj.λk.j(λl.λm.l(λn.λo.o))), λi.λj.i(λk.k(λl.λm.l(λn.λo.n(λp.λq.q)), λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.r(λt.λu.u))))), λk.λl.l)))))
+
+@main(λc.λn.c(λp.p(λs.λz.z, λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))))), λs.λz.z), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))))), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))))), λc.λn.c(λp.p(λs.λz.z, λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))))), λc.λn.c(λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))), λs.λz.s(λs.λz.s(λs.λz.z))), λc.λn.c(λp.p(λs.λz.s(λs.λz.z), λs.λz.s(λs.λz.z)), λc.λn.n)))))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.s)))))), λf.λg.g), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.r(λt.λu.u)))))), λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q))))), λg.λh.g(λi.i(λj.λk.k, λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.s))))), λi.λj.j))))

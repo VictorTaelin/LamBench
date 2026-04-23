@@ -1,0 +1,46 @@
+Bresenham's line rasterization. Given two points as
+Scott pairs, return a Scott list of all pixel
+coordinates on the rasterized line from start to end.
+
+This version only handles cases where the end point
+is greater than or equal to the start point in both
+coordinates (x1 >= x0 and y1 >= y0).
+
+Scott nat: Z = λs.λz.z, S(n) = λs.λz.s(n).
+Scott pair: P(x,y) = λp.p(x, y).
+Scott list: Nil = λc.λn.n, Cons(h,t) = λc.λn.c(h,t).
+
+@main(P1, P2) returns the list of points on the line.
+
+---
+
+@main(λp.p(λs.λz.z, λs.λz.z), λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))), λs.λz.z))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.i), λf.λg.g), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.m)), λh.λi.i), λg.λh.g(λi.i(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q))), λj.λk.k), λi.λj.j))))
+
+@main(λp.p(λs.λz.z, λs.λz.z), λp.p(λs.λz.z, λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.g, λf.λg.f(λh.λi.i)), λe.λf.e(λg.g(λh.λi.i, λh.λi.h(λj.λk.j(λl.λm.m))), λg.λh.g(λi.i(λj.λk.k, λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q)))), λi.λj.j))))
+
+@main(λp.p(λs.λz.z, λs.λz.z), λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.i), λf.λg.f(λh.λi.i)), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.m)), λh.λi.h(λj.λk.j(λl.λm.m))), λg.λh.g(λi.i(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q))), λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q)))), λi.λj.j))))
+
+@main(λp.p(λs.λz.z, λs.λz.z), λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))), λs.λz.s(λs.λz.z)))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.i), λf.λg.g), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.m)), λh.λi.i), λg.λh.g(λi.i(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q))), λj.λk.j(λl.λm.m)), λi.λj.i(λk.k(λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.r(λt.λu.u)))), λl.λm.l(λn.λo.o)), λk.λl.l)))))
+
+@main(λp.p(λs.λz.z, λs.λz.z), λp.p(λs.λz.s(λs.λz.z), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.g, λf.λg.f(λh.λi.i)), λe.λf.e(λg.g(λh.λi.i, λh.λi.h(λj.λk.j(λl.λm.m))), λg.λh.g(λi.i(λj.λk.j(λl.λm.m), λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q)))), λi.λj.i(λk.k(λl.λm.l(λn.λo.o), λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.r(λt.λu.u))))), λk.λl.l)))))
+
+@main(λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.s(λs.λz.z))), λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.s(λs.λz.z))))
+= λa.λb.a(λc.c(λd.λe.d(λf.λg.f(λh.λi.i)), λd.λe.d(λf.λg.f(λh.λi.i))), λc.λd.d)
+
+@main(λp.p(λs.λz.z, λs.λz.z), λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))), λs.λz.s(λs.λz.s(λs.λz.z))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.i), λf.λg.f(λh.λi.i)), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.m)), λh.λi.h(λj.λk.k)), λg.λh.g(λi.i(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q))), λj.λk.j(λl.λm.l(λn.λo.o))), λi.λj.j))))
+
+@main(λp.p(λs.λz.z, λs.λz.z), λp.p(λs.λz.s(λs.λz.s(λs.λz.z)), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))))
+= λa.λb.a(λc.c(λd.λe.e, λd.λe.e), λc.λd.c(λe.e(λf.λg.f(λh.λi.i), λf.λg.f(λh.λi.i)), λe.λf.e(λg.g(λh.λi.h(λj.λk.k), λh.λi.h(λj.λk.j(λl.λm.m))), λg.λh.g(λi.i(λj.λk.j(λl.λm.l(λn.λo.o)), λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q)))), λi.λj.j))))
+
+@main(λp.p(λs.λz.s(λs.λz.z), λs.λz.s(λs.λz.z)), λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z)))))
+= λa.λb.a(λc.c(λd.λe.d(λf.λg.g), λd.λe.d(λf.λg.g)), λc.λd.c(λe.e(λf.λg.f(λh.λi.h(λj.λk.k)), λf.λg.f(λh.λi.h(λj.λk.k))), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.o))), λh.λi.h(λj.λk.j(λl.λm.m))), λg.λh.g(λi.i(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.s)))), λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q)))), λi.λj.j))))
+
+@main(λp.p(λs.λz.s(λs.λz.z), λs.λz.s(λs.λz.s(λs.λz.z))), λp.p(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))))), λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.s(λs.λz.z))))))
+= λa.λb.a(λc.c(λd.λe.d(λf.λg.g), λd.λe.d(λf.λg.f(λh.λi.i))), λc.λd.c(λe.e(λf.λg.f(λh.λi.h(λj.λk.k)), λf.λg.f(λh.λi.h(λj.λk.k))), λe.λf.e(λg.g(λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.o))), λh.λi.h(λj.λk.j(λl.λm.l(λn.λo.o)))), λg.λh.g(λi.i(λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.s)))), λj.λk.j(λl.λm.l(λn.λo.n(λp.λq.q)))), λi.λj.i(λk.k(λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.r(λt.λu.t(λv.λw.w))))), λl.λm.l(λn.λo.n(λp.λq.p(λr.λs.r(λt.λu.u))))), λk.λl.l)))))
+

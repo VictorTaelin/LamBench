@@ -1,0 +1,45 @@
+Shortest path in a 2D grid. The input is a grid
+encoded as a Scott list of rows, where each row is
+a Scott list of Church booleans: True means open,
+False means wall. Find the shortest path from the
+top-left corner (0,0) to the bottom-right corner
+(H-1,W-1), moving up/down/left/right through open
+cells only. Return the path length as a Scott nat
+(number of steps). If no path exists, return Z (0).
+Start and end cells are guaranteed open.
+
+Scott nat: Z = λs.λz.z, S(n) = λs.λz.s(n).
+Scott list: Nil = λc.λn.n, Cons(h,t) = λc.λn.c(h,t).
+Church bool: True = λa.λb.a, False = λa.λb.b.
+
+---
+
+@main(λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.n), λc.λn.n))
+= λa.λb.b
+
+@main(λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n)), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n)), λc.λn.n)))
+= λa.λb.a(λc.λd.c(λe.λf.f))
+
+@main(λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.n))))
+= λa.λb.a(λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.j))))
+
+@main(λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.n))))
+= λa.λb.a(λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.j))))
+
+@main(λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.c(λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.n))))
+= λa.λb.b
+
+@main(λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.b, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.n))))
+= λa.λb.a(λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.i(λk.λl.l)))))
+
+@main(λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.b, λc.λn.n))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.c(λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n))), λc.λn.n)))))
+= λa.λb.a(λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.i(λk.λl.l)))))
+
+@main(λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.n)))))
+= λa.λb.a(λc.λd.c(λe.λf.e(λg.λh.g(λi.λj.i(λk.λl.k(λm.λn.n))))))
+
+@main(λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.b, λc.λn.n)))), λc.λn.n)))))
+= λa.λb.b
+
+@main(λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.b, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.c(λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.c(λa.λb.a, λc.λn.n)))), λc.λn.n)))))
+= λa.λb.b

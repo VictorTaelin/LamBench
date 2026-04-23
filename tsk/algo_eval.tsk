@@ -1,0 +1,61 @@
+Lambda calculus evaluator. Given a Scott-encoded lambda
+term using de Bruijn indices, return its beta-normal form
+(also Scott-encoded).
+
+Term encoding (3-variant Scott):
+  Lam(body)    = λlam.λapp.λvar.lam(body)
+  App(fun,arg) = λlam.λapp.λvar.app(fun, arg)
+  Var(idx)     = λlam.λapp.λvar.var(idx)
+where idx is a Scott nat (de Bruijn index).
+
+Scott nat: Z = λs.λz.z, S(n) = λs.λz.s(n).
+
+De Bruijn convention: Var(0) inside one Lam refers to
+that binder; higher indices reach outer binders or are
+free. Beta-reduction must handle shifting and
+substitution of de Bruijn indices correctly.
+
+@main takes one Term and returns its beta-normal form.
+
+---
+
+@main(λa.λb.λc.c(λd.λe.e))
+
+= λa.λb.λc.c(λd.λe.e)
+
+@main(λa.λb.λc.a(λd.λe.λf.f(λg.λh.h)))
+
+= λa.λb.λc.a(λd.λe.λf.f(λg.λh.h))
+
+@main(λa.λb.λc.b(λd.λe.λf.d(λg.λh.λi.i(λj.λk.k)), λd.λe.λf.f(λg.λh.h)))
+
+= λa.λb.λc.c(λd.λe.e)
+
+@main(λa.λb.λc.b(λd.λe.λf.d(λg.λh.λi.i(λj.λk.k)), λd.λe.λf.d(λg.λh.λi.i(λj.λk.k))))
+
+= λa.λb.λc.a(λd.λe.λf.f(λg.λh.h))
+
+@main(λa.λb.λc.b(λd.λe.λf.f(λg.λh.h), λd.λe.λf.f(λg.λh.g(λi.λj.j))))
+
+= λa.λb.λc.b(λd.λe.λf.f(λg.λh.h), λd.λe.λf.f(λg.λh.g(λi.λj.j)))
+
+@main(λa.λb.λc.b(λd.λe.λf.d(λg.λh.λi.g(λj.λk.λl.l(λm.λn.m(λo.λp.p)))), λd.λe.λf.f(λg.λh.h)))
+
+= λa.λb.λc.a(λd.λe.λf.f(λg.λh.g(λi.λj.j)))
+
+@main(λa.λb.λc.b(λd.λe.λf.e(λg.λh.λi.g(λj.λk.λl.j(λm.λn.λo.o(λp.λq.p(λr.λs.s)))), λg.λh.λi.i(λj.λk.k)), λd.λe.λf.f(λg.λh.g(λi.λj.j))))
+
+= λa.λb.λc.c(λd.λe.e)
+
+@main(λa.λb.λc.b(λd.λe.λf.e(λg.λh.λi.g(λj.λk.λl.j(λm.λn.λo.o(λp.λq.q))), λg.λh.λi.i(λj.λk.k)), λd.λe.λf.f(λg.λh.g(λi.λj.j))))
+
+= λa.λb.λc.c(λd.λe.d(λf.λg.g))
+
+@main(λa.λb.λc.a(λd.λe.λf.e(λg.λh.λi.g(λj.λk.λl.l(λm.λn.n)), λg.λh.λi.i(λj.λk.k))))
+
+= λa.λb.λc.a(λd.λe.λf.f(λg.λh.h))
+
+@main(λa.λb.λc.b(λd.λe.λf.d(λg.λh.λi.h(λj.λk.λl.l(λm.λn.n), λj.λk.λl.l(λm.λn.n))), λd.λe.λf.d(λg.λh.λi.i(λj.λk.k))))
+
+= λa.λb.λc.a(λd.λe.λf.f(λg.λh.h))
+
