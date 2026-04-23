@@ -673,19 +673,22 @@ function build_text_report(
   model: string,
   results: EvalResult[],
   score: number,
+  total_tasks: number,
 ): string {
   var lines: string[] = [];
 
   lines.push(`score: ${score.toFixed(1)}`);
+  lines.push(`evaluated: ${results.length}/${total_tasks}`);
   lines.push("");
   lines.push("task scores:");
 
   for (var result of results) {
     var task_score = (result.score * 100).toFixed(1);
     var status = result.pass ? "pass" : "fail";
+    var time = ` time=${result.seconds.toFixed(1)}s`;
     var bits = result.pass ? ` bits=${result.bits}` : "";
     var ref = result.ref_bits === undefined ? "" : ` ref=${result.ref_bits}`;
-    lines.push(`- ${result.id}: ${task_score} ${status}${bits}${ref}`);
+    lines.push(`- ${result.id}: ${task_score} ${status}${time}${bits}${ref}`);
   }
 
   lines.push("");
@@ -764,17 +767,19 @@ async function main() {
 
   var pass = results.filter(r => r.pass).length;
   var created_refs = results.filter(r => r.created_reference).length;
-  var avg =
+  var score =
     results.reduce((sum, r) => sum + r.score, 0) /
-    Math.max(results.length, 1);
+    Math.max(all_tasks.length, 1) *
+    100;
   var report = {
     model: args.model,
     filter: args.filter,
     concurrency: args.concurrency,
-    tasks: results.length,
+    tasks: all_tasks.length,
+    evaluated_tasks: results.length,
     pass,
     created_refs,
-    score: avg * 100,
+    score,
     results,
   };
 
@@ -786,12 +791,17 @@ async function main() {
     res_dir,
     `${report_stamp(started_at)}.${safe_name(args.model)}.txt`,
   );
-  var text_report = build_text_report(args.model, results, avg * 100);
+  var text_report = build_text_report(
+    args.model,
+    results,
+    score,
+    all_tasks.length,
+  );
   writeFileSync(text_report_path, text_report);
 
   console.log("");
   console.log(`${pass}/${results.length} passed`);
-  console.log(`score: ${(avg * 100).toFixed(1)}`);
+  console.log(`score: ${score.toFixed(1)}`);
   console.log(`references created: ${created_refs}`);
   console.log(`report: ${report_path}`);
   console.log(`results: ${text_report_path}`);
