@@ -1,0 +1,41 @@
+Type-check a simply typed lambda calculus term.
+Return Church True if well-typed in the empty
+context, Church False otherwise.
+
+data Term = Lam Ty Term | App Term Term | Var Nat
+data Ty   = Base | Arrow Ty Ty
+
+Scott encoding:
+  Lam(ty,t)  = λl.λa.λv.l(ty, t)
+  App(f,x)   = λl.λa.λv.a(f, x)
+  Var(n)     = λl.λa.λv.v(n)
+  Base       = λb.λa.b
+  Arrow(s,t) = λb.λa.a(s, t)
+
+De Bruijn indices. Lambdas carry type annotations.
+Well-typed = inference succeeds in empty context.
+
+A Scott nat: Z = λs.λz.z, S(n) = λs.λz.s(n).
+Church bools: True = λa.λb.a, False = λa.λb.b.
+
+---
+@main(λl.λa.λv.l(λb.λa.b, λl.λa.λv.v(λs.λz.z)))
+= λa.λb.a
+@main(λl.λa.λv.l(λb.λa.b, λl.λa.λv.l(λb.λa.b, λl.λa.λv.v(λs.λz.s(λs.λz.z)))))
+= λa.λb.a
+@main(λl.λa.λv.a(λl.λa.λv.l(λb.λa.a(λb.λa.b, λb.λa.b), λl.λa.λv.v(λs.λz.z)), λl.λa.λv.l(λb.λa.b, λl.λa.λv.v(λs.λz.z))))
+= λa.λb.a
+@main(λl.λa.λv.l(λb.λa.a(λb.λa.b, λb.λa.a(λb.λa.b, λb.λa.b)), λl.λa.λv.l(λb.λa.a(λb.λa.b, λb.λa.b), λl.λa.λv.l(λb.λa.b, λl.λa.λv.a(λl.λa.λv.a(λl.λa.λv.v(λs.λz.s(λs.λz.s(λs.λz.z))), λl.λa.λv.v(λs.λz.z)), λl.λa.λv.a(λl.λa.λv.v(λs.λz.s(λs.λz.z)), λl.λa.λv.v(λs.λz.z)))))))
+= λa.λb.a
+@main(λl.λa.λv.l(λb.λa.a(λb.λa.a(λb.λa.b, λb.λa.b), λb.λa.b), λl.λa.λv.l(λb.λa.b, λl.λa.λv.a(λl.λa.λv.v(λs.λz.s(λs.λz.z)), λl.λa.λv.l(λb.λa.b, λl.λa.λv.v(λs.λz.z))))))
+= λa.λb.a
+@main(λl.λa.λv.v(λs.λz.z))
+= λa.λb.b
+@main(λl.λa.λv.a(λl.λa.λv.l(λb.λa.b, λl.λa.λv.v(λs.λz.z)), λl.λa.λv.l(λb.λa.b, λl.λa.λv.v(λs.λz.z))))
+= λa.λb.b
+@main(λl.λa.λv.l(λb.λa.b, λl.λa.λv.a(λl.λa.λv.v(λs.λz.z), λl.λa.λv.v(λs.λz.z))))
+= λa.λb.b
+@main(λl.λa.λv.a(λl.λa.λv.l(λb.λa.a(λb.λa.b, λb.λa.b), λl.λa.λv.v(λs.λz.z)), λl.λa.λv.l(λb.λa.a(λb.λa.b, λb.λa.b), λl.λa.λv.v(λs.λz.z))))
+= λa.λb.b
+@main(λl.λa.λv.l(λb.λa.b, λl.λa.λv.a(λl.λa.λv.v(λs.λz.z), λl.λa.λv.l(λb.λa.b, λl.λa.λv.v(λs.λz.z)))))
+= λa.λb.b
