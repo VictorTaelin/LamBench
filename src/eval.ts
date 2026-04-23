@@ -141,6 +141,7 @@ function get_model(spec: string): EvalModel {
       "model must look like <provider>/<model>, for example openai/gpt-5.5"
     );
   }
+  validate_model_provider(spec, provider, model_id);
 
   if (provider === "openai") {
     return { spec, provider, model_id };
@@ -164,6 +165,43 @@ function get_model(spec: string): EvalModel {
   }
 
   return { spec, provider, model_id, sdk: spec };
+}
+
+function validate_model_provider(
+  spec: string,
+  provider: string,
+  model_id: string,
+) {
+  if (provider === "openai" && looks_like_anthropic_model(model_id)) {
+    throw new Error(
+      `model "${spec}" looks like an Anthropic model; ` +
+      `use "anthropic/${model_id}"`
+    );
+  }
+
+  if (provider === "anthropic" && looks_like_openai_model(model_id)) {
+    throw new Error(
+      `model "${spec}" looks like an OpenAI model; use "openai/${model_id}"`
+    );
+  }
+}
+
+function looks_like_anthropic_model(model_id: string): boolean {
+  return (
+    model_id.startsWith("claude-") ||
+    model_id.startsWith("opus-") ||
+    model_id.startsWith("sonnet-") ||
+    model_id.startsWith("haiku-")
+  );
+}
+
+function looks_like_openai_model(model_id: string): boolean {
+  return (
+    model_id.startsWith("gpt-") ||
+    model_id.startsWith("o1") ||
+    model_id.startsWith("o3") ||
+    model_id.startsWith("o4")
+  );
 }
 
 function normalize_model_id(provider: string, model_id: string): string {
@@ -329,6 +367,56 @@ function summarize_error(error: string): string {
   );
 }
 
+function clean_process_error(
+  cmd: string,
+  stdout: string,
+  stderr: string,
+): string {
+  var text = strip_ansi([stderr, stdout].filter(Boolean).join("\n"));
+  var json_error = extract_json_error(text);
+  if (json_error) return json_error;
+
+  var lines = text.split("\n").map(line => line.trim()).filter(Boolean);
+  var useful = lines.find(line => line.includes("invalid_request_error"));
+  useful ??= lines.find(line => line.includes("not supported"));
+  useful ??= lines.find(line => line.includes("Forbidden"));
+  useful ??= lines.find(line => line.startsWith("ERROR:"));
+  return useful ?? `${cmd} failed`;
+}
+
+function strip_ansi(text: string): string {
+  return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+}
+
+function extract_json_error(text: string): string | undefined {
+  var lines = text.split("\n");
+  for (var i = lines.length - 1; i >= 0; i--) {
+    var line = lines[i];
+    var index = line.indexOf("ERROR:");
+    if (index < 0) continue;
+
+    var payload = line.slice(index + "ERROR:".length).trim();
+    if (!payload.startsWith("{")) continue;
+
+    try {
+      var parsed = JSON.parse(payload);
+      var message = json_error_message(parsed);
+      if (message) return message;
+    } catch {
+      // Fall through to the non-JSON cleanup path.
+    }
+  }
+}
+
+function json_error_message(value: any): string | undefined {
+  if (typeof value?.detail === "string") return value.detail;
+  if (typeof value?.error?.message === "string") {
+    return value.error.message;
+  }
+  if (typeof value?.message === "string") return value.message;
+  if (typeof value?.error === "string") return value.error;
+}
+
 function run_process(
   cmd: string,
   args: string[],
@@ -364,7 +452,7 @@ function run_process(
       } else if (code === 0) {
         resolve({ stdout, stderr });
       } else {
-        reject(new Error(stderr || stdout || `${cmd} exited with ${code}`));
+        reject(new Error(clean_process_error(cmd, stdout, stderr)));
       }
     });
 
@@ -642,4 +730,9 @@ async function main() {
   console.log(`results: ${text_report_path}`);
 }
 
-if (import.meta.main) main();
+if (import.meta.main) {
+  main().catch((error: any) => {
+    console.error(error?.message ?? String(error));
+    process.exit(1);
+  });
+}
