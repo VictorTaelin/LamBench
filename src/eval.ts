@@ -4,12 +4,12 @@ import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { xai } from "@ai-sdk/xai";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { homedir } from "os";
-import { basename, join } from "path";
-import type { Task, Result } from "./types";
+import { join } from "path";
+import type { Task } from "./types";
 import { load_tasks } from "./parse";
-import { bin_size, reference_bits, run_task, task_score } from "./run";
+import { reference_bits, run_task, task_score } from "./run";
 
 type EvalResult = {
   id: string;
@@ -19,6 +19,7 @@ type EvalResult = {
   score: number;
   seconds: number;
   created_reference: boolean;
+  solution?: string;
   output_path?: string;
   error?: string;
   usage?: unknown;
@@ -94,6 +95,20 @@ function parse_args(): Args {
 
 function safe_name(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
+
+function pad2(n: number): string {
+  return n.toString().padStart(2, "0");
+}
+
+function report_stamp(date: Date): string {
+  var yyyy = date.getFullYear();
+  var mm = pad2(date.getMonth() + 1);
+  var dd = pad2(date.getDate());
+  var hh = pad2(date.getHours());
+  var min = pad2(date.getMinutes());
+  var ss = pad2(date.getSeconds());
+  return `${yyyy}y${mm}m${dd}d.${hh}h${min}m${ss}s`;
 }
 
 function matches_filter(id: string, filter?: string): boolean {
@@ -315,6 +330,7 @@ async function eval_task(
       score: check.score,
       seconds: (Date.now() - started) / 1000,
       created_reference,
+      solution: submission,
       output_path: lam_path,
       error: check.errors[0],
       usage: response.usage,
@@ -330,6 +346,43 @@ async function eval_task(
       error: e?.message ?? String(e),
     };
   }
+}
+
+function build_text_report(
+  model: string,
+  results: EvalResult[],
+  score: number,
+): string {
+  var lines: string[] = [];
+
+  lines.push(`score: ${score.toFixed(1)}`);
+  lines.push("");
+  lines.push("task scores:");
+
+  for (var result of results) {
+    var task_score = (result.score * 100).toFixed(1);
+    var status = result.pass ? "pass" : "fail";
+    var bits = result.pass ? ` bits=${result.bits}` : "";
+    var ref = result.ref_bits === undefined ? "" : ` ref=${result.ref_bits}`;
+    lines.push(`- ${result.id}: ${task_score} ${status}${bits}${ref}`);
+  }
+
+  lines.push("");
+  lines.push("solutions:");
+
+  for (var result of results) {
+    lines.push("");
+    lines.push(`--- ${result.id} ---`);
+    if (result.solution && result.solution.trim() !== "") {
+      lines.push(result.solution.trim());
+    } else {
+      lines.push("(no solution)");
+    }
+  }
+
+  lines.push("");
+  lines.push(`model: ${model}`);
+  return lines.join("\n") + "\n";
 }
 
 async function run_pool<T, R>(
@@ -361,7 +414,8 @@ async function main() {
   var model = get_model(args.model);
   var all_tasks = load_tasks(join(import.meta.dir, "..", "tsk"));
   var tasks = all_tasks.filter(task => matches_filter(task.id, args.filter));
-  var stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  var started_at = new Date();
+  var stamp = started_at.toISOString().replace(/[:.]/g, "-");
   var out_dir = join(
     import.meta.dir,
     "..",
@@ -405,12 +459,21 @@ async function main() {
 
   var report_path = join(out_dir, "report.json");
   writeFileSync(report_path, JSON.stringify(report, null, 2));
+  var res_dir = join(import.meta.dir, "..", "res");
+  mkdirSync(res_dir, { recursive: true });
+  var text_report_path = join(
+    res_dir,
+    `${report_stamp(started_at)}.${safe_name(args.model)}.txt`,
+  );
+  var text_report = build_text_report(args.model, results, avg * 100);
+  writeFileSync(text_report_path, text_report);
 
   console.log("");
   console.log(`${pass}/${results.length} passed`);
   console.log(`score: ${(avg * 100).toFixed(1)}`);
   console.log(`references created: ${created_refs}`);
   console.log(`report: ${report_path}`);
+  console.log(`results: ${text_report_path}`);
 }
 
 if (import.meta.main) main();
