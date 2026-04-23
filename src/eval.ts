@@ -11,7 +11,7 @@ import type { Task } from "./types";
 import { load_tasks } from "./parse";
 import { REF_DIR, reference_bits, run_task, task_score } from "./run";
 
-const DEFAULT_TASK_TIMEOUT_MS = 300 * 1000;
+const DEFAULT_TASK_TIMEOUT_MS = 600 * 1000;
 
 type EvalResult = {
   id: string;
