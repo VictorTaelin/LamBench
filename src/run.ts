@@ -10,6 +10,8 @@ import { basename, join } from "path";
 import type { Task, Result } from "./types";
 import { parse_task, load_tasks } from "./parse";
 
+export const REF_DIR = join(import.meta.dir, "..", "lam");
+
 var TMP = join(import.meta.dir, "..", ".tmp");
 var TMP_ID = 0;
 
@@ -91,7 +93,7 @@ export function reference_bits(
   task_id: string,
   timeout = 10_000,
 ): number | undefined {
-  var path = join(import.meta.dir, "..", "sol", task_id + ".lam");
+  var path = join(REF_DIR, task_id + ".lam");
   if (!existsSync(path)) return undefined;
   return bin_size(readFileSync(path, "utf-8").trim(), timeout);
 }

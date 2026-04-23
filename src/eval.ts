@@ -9,9 +9,9 @@ import { homedir } from "os";
 import { join } from "path";
 import type { Task } from "./types";
 import { load_tasks } from "./parse";
-import { reference_bits, run_task, task_score } from "./run";
+import { REF_DIR, reference_bits, run_task, task_score } from "./run";
 
-const TASK_TIMEOUT_MS = 1200 * 1000;
+const DEFAULT_TASK_TIMEOUT_MS = 300 * 1000;
 
 type EvalResult = {
   id: string;
@@ -38,6 +38,7 @@ type Args = {
   model: string;
   filter?: string;
   concurrency: number;
+  timeout_ms: number;
 };
 
 function token_path(name: string): string {
@@ -76,12 +77,17 @@ function parse_args(): Args {
   var args = process.argv.slice(2);
   if (args.length === 0) {
     console.error(
-      "usage: bun eval <provider/model> [--filter prefix] [--concurrency n]"
+      "usage: bun eval <provider/model> [--filter prefix] " +
+      "[--concurrency n] [--timeout seconds]"
     );
     process.exit(1);
   }
 
-  var parsed: Args = { model: args[0], concurrency: 4 };
+  var parsed: Args = {
+    model: args[0],
+    concurrency: 4,
+    timeout_ms: DEFAULT_TASK_TIMEOUT_MS,
+  };
   for (var i = 1; i < args.length; i++) {
     var arg = args[i];
     if (arg === "--filter") parsed.filter = args[++i];
@@ -92,6 +98,12 @@ function parse_args(): Args {
     else if (arg.startsWith("--concurrency=")) {
       parsed.concurrency = Number(arg.slice("--concurrency=".length));
     }
+    else if (arg === "--timeout") {
+      parsed.timeout_ms = Number(args[++i]) * 1000;
+    }
+    else if (arg.startsWith("--timeout=")) {
+      parsed.timeout_ms = Number(arg.slice("--timeout=".length)) * 1000;
+    }
     else throw new Error(`unknown argument: ${arg}`);
   }
 
@@ -99,6 +111,11 @@ function parse_args(): Args {
     throw new Error("--concurrency must be a positive number");
   }
   parsed.concurrency = Math.floor(parsed.concurrency);
+
+  if (!Number.isFinite(parsed.timeout_ms) || parsed.timeout_ms < 1000) {
+    throw new Error("--timeout must be at least 1 second");
+  }
+  parsed.timeout_ms = Math.floor(parsed.timeout_ms);
   return parsed;
 }
 
@@ -617,7 +634,8 @@ async function eval_task_body(
   var created_reference = false;
 
   if (check.pass && ref === undefined) {
-    var ref_path = join(import.meta.dir, "..", "sol", task.id + ".lam");
+    mkdirSync(REF_DIR, { recursive: true });
+    var ref_path = join(REF_DIR, task.id + ".lam");
     writeFileSync(ref_path, submission.trim() + "\n");
     ref = check.bits;
     check.score = task_score(check.bits, ref);
@@ -643,13 +661,14 @@ async function eval_task(
   task: Task,
   model: EvalModel,
   out_dir: string,
+  timeout_ms: number,
 ): Promise<EvalResult> {
   var started = Date.now();
   var abort = new AbortController();
 
   try {
-    var deadline_ms = started + TASK_TIMEOUT_MS;
-    var timeout = timeout_result(TASK_TIMEOUT_MS, abort);
+    var deadline_ms = started + timeout_ms;
+    var timeout = timeout_result(timeout_ms, abort);
     return await Promise.race([
       eval_task_body(task, model, out_dir, started, deadline_ms, abort.signal),
       timeout.promise,
@@ -753,13 +772,14 @@ async function main() {
   var filter = args.filter ? ` filter=${args.filter}` : "";
   console.log(`tasks: ${tasks.length}/${all_tasks.length}${filter}`);
   console.log(`concurrency: ${args.concurrency}`);
+  console.log(`timeout: ${Math.floor(args.timeout_ms / 1000)}s/task`);
   console.log(`output: ${out_dir}`);
   console.log("");
 
   var completed = 0;
   var results = await run_pool(tasks, args.concurrency, async task => {
     console.log(`→ ${task.id}`);
-    var result = await eval_task(task, model, out_dir);
+    var result = await eval_task(task, model, out_dir, args.timeout_ms);
     completed += 1;
     console.log(`${format_line(result)} (${completed}/${tasks.length})`);
     return result;
