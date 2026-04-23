@@ -1,0 +1,5 @@
+@pred = λn.n(λp.p, λs.λz.z)
+@sub = λa.λb.b(λp.@sub(@pred(a), p), a)
+@geq = λa.λb.b(λp.a(λq.@geq(q, p), λt.λf.f), λt.λf.t)
+@div = λa.λb.@geq(a, b)(λs.λz.s(@div(@sub(a, b), b)), λs.λz.z)
+@main = λn.λb.@geq(n, b)(λs.λz.s(@main(@div(n, b), b)), λs.λz.z)

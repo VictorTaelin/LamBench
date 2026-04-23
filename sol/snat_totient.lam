@@ -1,0 +1,14 @@
+@zero = λs.λz.z
+@succ = λn.λs.λz.s(n)
+@pred = λn.n(λp.p)(@zero)
+@true = λa.λb.a
+@false = λa.λb.b
+@isZero = λn.n(λp.@false)(@true)
+@sub = λa.λb.b(λp.@pred(@sub(a,p)))(a)
+@leq = λa.λb.@isZero(@sub(a,b))
+@lt = λa.λb.@leq(@succ(a),b)
+@mod = λa.λb.@lt(a,b)(a)(@mod(@sub(a,b),b))
+@gcd = λa.λb.@isZero(b)(a)(@gcd(b,@mod(a,b)))
+@eq1 = λn.n(λp.@isZero(p))(@false)
+@count = λk.λn.@isZero(k)(@zero)(@eq1(@gcd(k,n))(@succ(@count(@pred(k),n)))(@count(@pred(k),n)))
+@main = λn.@count(n,n)

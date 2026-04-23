@@ -1,14 +1,20 @@
 import { execSync } from "child_process";
-import { writeFileSync, readFileSync, mkdirSync } from "fs";
-import { join } from "path";
+import { writeFileSync, readFileSync, mkdirSync, statSync, existsSync } from "fs";
+import { basename, join } from "path";
 import type { Task, Result } from "./types";
 import { parse_task, load_tasks } from "./parse";
 
 var TMP = join(import.meta.dir, "..", ".tmp");
+var TMP_ID = 0;
 
-function lam_run(src: string, timeout = 10_000): string {
+function tmp_file(name: string): string {
+  TMP_ID += 1;
+  return join(TMP, `${process.pid}-${TMP_ID}-${name}.lam`);
+}
+
+export function lam_run(src: string, timeout = 10_000): string {
   mkdirSync(TMP, { recursive: true });
-  var file = join(TMP, "run.lam");
+  var file = tmp_file("run");
   writeFileSync(file, src);
   try {
     return execSync(`lam ${file}`, { timeout, encoding: "utf-8" }).trim();
@@ -21,19 +27,25 @@ function normalize(term: string): string {
   return lam_run("@main = " + term);
 }
 
-function bin_size(src: string): number {
+export function bin_size(src: string): number {
   mkdirSync(TMP, { recursive: true });
-  var file = join(TMP, "size.lam");
+  var file = tmp_file("size");
   writeFileSync(file, src);
   return execSync(`lam ${file} --to-bin`, { encoding: "utf-8" }).trim().length;
 }
 
-// Per-task score: 256 bits = 0.5, each halving → +0.25, each doubling → ×0.5
-function task_score(bits: number): number {
-  return bits <= 256 ? 1 - bits / 512 : 128 / bits;
+// Per-task score: reference bits = 0.5, each halving -> +0.25, each doubling -> x0.5
+export function task_score(bits: number, reference_bits: number): number {
+  return bits <= reference_bits ? 1 - bits / (2 * reference_bits) : reference_bits / (2 * bits);
 }
 
-export function run_task(task: Task, submission: string): Result {
+export function reference_bits(task_id: string): number | undefined {
+  var path = join(import.meta.dir, "..", "sol", task_id + ".lam");
+  if (!existsSync(path)) return undefined;
+  return bin_size(readFileSync(path, "utf-8").trim());
+}
+
+export function run_task(task: Task, submission: string, ref_bits?: number): Result {
   var errors: string[] = [];
 
   for (var t of task.tests) {
@@ -56,7 +68,7 @@ export function run_task(task: Task, submission: string): Result {
   if (pass) {
     try {
       bits  = bin_size(submission);
-      score = task_score(bits);
+      score = task_score(bits, ref_bits ?? bits);
     } catch {
       pass = false;
       errors.push("failed to compute binary size");
@@ -66,7 +78,7 @@ export function run_task(task: Task, submission: string): Result {
   return { id: task.id, pass, bits, score, errors };
 }
 
-function show_result(r: Result): string {
+export function show_result(r: Result): string {
   var status = r.pass ? "✓" : "✗";
   var detail = r.pass ? `${r.bits} bits, score: ${r.score.toFixed(3)}` : "FAIL";
   var lines  = [`${status} ${r.id}: ${detail}`];
@@ -76,22 +88,21 @@ function show_result(r: Result): string {
   return lines.join("\n");
 }
 
-// CLI: bun src/run.ts <submissions_dir>
-// submissions_dir contains .lam files named by task id
-async function main() {
-  var args = process.argv.slice(2);
-  if (args.length === 0) {
-    console.error("usage: bun src/run.ts <submissions_dir>");
-    process.exit(1);
-  }
+function run_file(path: string): Result {
+  var task_id = basename(path, ".lam");
+  var tsk_dir = join(import.meta.dir, "..", "tsk");
+  var task = parse_task(join(tsk_dir, task_id + ".tsk"));
+  var sub = readFileSync(path, "utf-8").trim();
+  return run_task(task, sub, reference_bits(task_id));
+}
 
-  var sub_dir = args[0];
+function run_dir(path: string): Result[] {
   var tsk_dir = join(import.meta.dir, "..", "tsk");
   var tasks   = load_tasks(tsk_dir);
   var results: Result[] = [];
 
   for (var task of tasks) {
-    var sub_path = join(sub_dir, task.id + ".lam");
+    var sub_path = join(path, task.id + ".lam");
     try {
       var sub = readFileSync(sub_path, "utf-8").trim();
     } catch {
@@ -99,14 +110,33 @@ async function main() {
       results.push({ id: task.id, pass: false, bits: 0, score: 0, errors: ["no submission"] });
       continue;
     }
-    var result = run_task(task, sub);
+    var result = run_task(task, sub, reference_bits(task.id));
     results.push(result);
     console.log(show_result(result));
   }
 
+  return results;
+}
+
+// CLI: bun src/run.ts <submission>
+// submission can be a directory of task-named .lam files, or one task-named .lam file.
+async function main() {
+  var args = process.argv.slice(2);
+  if (args.length === 0) {
+    console.error("usage: bun src/run.ts <submissions_dir|submission.lam>");
+    process.exit(1);
+  }
+
+  var submission = args[0];
+  if (statSync(submission).isFile()) {
+    console.log(show_result(run_file(submission)));
+    return;
+  }
+
+  var results = run_dir(submission);
   var avg = results.reduce((s, r) => s + r.score, 0) / results.length;
   console.log(`\n${results.filter(r => r.pass).length}/${results.length} passed`);
   console.log(`score: ${(avg * 100).toFixed(1)}`);
 }
 
-main();
+if (import.meta.main) main();

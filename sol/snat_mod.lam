@@ -1,0 +1,4 @@
+@pred = λn.n(λp.p)(λs.λz.z)
+@sub = λa.λb.b(λp.@sub(@pred(a),p))(a)
+@isZero = λn.n(λp.λt.λf.f)(λt.λf.t)
+@main = λa.λb.@isZero(@sub(b,a))(λd.@main(@sub(a,b),b))(λd.a)(λs.λz.z)

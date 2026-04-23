@@ -1,0 +1,416 @@
+import { generateText, type LanguageModel } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
+import { openai } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { xai } from "@ai-sdk/xai";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { homedir } from "os";
+import { basename, join } from "path";
+import type { Task, Result } from "./types";
+import { load_tasks } from "./parse";
+import { bin_size, reference_bits, run_task, task_score } from "./run";
+
+type EvalResult = {
+  id: string;
+  pass: boolean;
+  bits: number;
+  ref_bits?: number;
+  score: number;
+  seconds: number;
+  created_reference: boolean;
+  output_path?: string;
+  error?: string;
+  usage?: unknown;
+};
+
+type Args = {
+  model: string;
+  filter?: string;
+  concurrency: number;
+};
+
+function token_path(name: string): string {
+  return join(homedir(), ".config", name);
+}
+
+function read_token(name: string): string | undefined {
+  try {
+    var token = readFileSync(token_path(name), "utf-8").trim();
+    return token.length === 0 ? undefined : token;
+  } catch {
+    return undefined;
+  }
+}
+
+function set_env(name: string, files: string[]) {
+  if (process.env[name]) return;
+  for (var file of files) {
+    var token = read_token(file);
+    if (token) {
+      process.env[name] = token;
+      return;
+    }
+  }
+}
+
+function load_keys() {
+  set_env("OPENAI_API_KEY", ["openai.token"]);
+  set_env("ANTHROPIC_API_KEY", ["anthropic.token", "anthropic_vic.token"]);
+  set_env("GOOGLE_GENERATIVE_AI_API_KEY", ["gemini.token", "google.token"]);
+  set_env("XAI_API_KEY", ["xai.token", "xai_normal.token"]);
+  set_env("OPENROUTER_API_KEY", ["openrouter.token"]);
+}
+
+function parse_args(): Args {
+  var args = process.argv.slice(2);
+  if (args.length === 0) {
+    console.error(
+      "usage: bun eval <provider/model> [--filter prefix] [--concurrency n]"
+    );
+    process.exit(1);
+  }
+
+  var parsed: Args = { model: args[0], concurrency: 4 };
+  for (var i = 1; i < args.length; i++) {
+    var arg = args[i];
+    if (arg === "--filter") parsed.filter = args[++i];
+    else if (arg.startsWith("--filter=")) {
+      parsed.filter = arg.slice("--filter=".length);
+    }
+    else if (arg === "--concurrency") parsed.concurrency = Number(args[++i]);
+    else if (arg.startsWith("--concurrency=")) {
+      parsed.concurrency = Number(arg.slice("--concurrency=".length));
+    }
+    else throw new Error(`unknown argument: ${arg}`);
+  }
+
+  if (!Number.isFinite(parsed.concurrency) || parsed.concurrency < 1) {
+    throw new Error("--concurrency must be a positive number");
+  }
+  parsed.concurrency = Math.floor(parsed.concurrency);
+  return parsed;
+}
+
+function safe_name(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
+
+function matches_filter(id: string, filter?: string): boolean {
+  if (!filter) return true;
+  if (filter.includes("*")) {
+    var re = new RegExp(
+      "^" + filter.split("*").map(escape_re).join(".*") + "$"
+    );
+    return re.test(id);
+  }
+  return id === filter || id.startsWith(filter) || id.includes(filter);
+}
+
+function escape_re(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function get_model(spec: string): LanguageModel {
+  var [provider, ...rest] = spec.split("/");
+  var model_id = rest.join("/");
+  if (!provider || !model_id) {
+    throw new Error(
+      "model must look like <provider>/<model>, for example openai/gpt-5.5"
+    );
+  }
+
+  if (provider === "openai") return openai(model_id);
+  if (provider === "anthropic") return anthropic(model_id);
+  if (provider === "google") return google(model_id);
+  if (provider === "xai") return xai(model_id);
+  if (provider === "openrouter") {
+    var openrouter = createOpenAICompatible({
+      name: "openrouter",
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: "https://openrouter.ai/api/v1",
+    });
+    return openrouter(model_id);
+  }
+
+  return spec;
+}
+
+function high_thinking_options() {
+  return {
+    openai: {
+      reasoningEffort: "high",
+      forceReasoning: true,
+    },
+    anthropic: {
+      effort: "high",
+      thinking: { type: "enabled", budgetTokens: 8000 },
+    },
+    google: {
+      thinkingConfig: { thinkingLevel: "high", includeThoughts: false },
+    },
+    xai: {
+      reasoningEffort: "high",
+    },
+    openrouter: {
+      reasoningEffort: "high",
+    },
+    openaiCompatible: {
+      reasoningEffort: "high",
+    },
+  };
+}
+
+function task_prompt(task: Task): string {
+  var task_path = join(import.meta.dir, "..", "tsk", task.id + ".tsk");
+  var task_text = readFileSync(task_path, "utf-8").trim();
+  return [
+    "You are solving one problem from Lambench, a benchmark of pure",
+    "lambda-calculus programming tasks.",
+    "",
+    "Your goal is to produce the smallest correct Lamb program you can.",
+    "Correctness is mandatory.",
+    "",
+    "The evaluator will append test expressions that call @main, normalize",
+    "them with the Lamb interpreter, and compare the normalized output with",
+    "the expected result.",
+    "",
+    "Task",
+    `id: ${task.id}`,
+    "The task file below contains a natural-language specification followed",
+    "by test cases after the --- separator.",
+    "",
+    "Each test case is two lines: an expression that uses @main, then the",
+    "expected normalized output prefixed with =.",
+    "",
+    "```text",
+    task_text,
+    "```",
+    "",
+    "Output Requirement",
+    "Return exactly one .lam program and nothing else.",
+    "Do not use Markdown fences.",
+    "Do not explain your solution.",
+    "",
+    "The program must define @main.",
+    "You may define helper functions with top-level @definitions.",
+    "The last top-level definition is the entry point.",
+    "Make @main the last definition.",
+    "",
+    "Lamb Grammar",
+    "A .lam file is a book of top-level definitions:",
+    "@name = term",
+    "",
+    "Terms use this grammar:",
+    "- variable: name",
+    "- reference: @name",
+    "- lambda: λname.term",
+    "- application: term(arg1,arg2,...,argN)",
+    "- grouping: (term)",
+    "",
+    "Important syntax details:",
+    "- Names may contain only ASCII letters, digits, and underscore.",
+    "- Valid name characters are [0-9A-Za-z_].",
+    "- Do not use apostrophes, hyphens, Unicode subscripts, or punctuation.",
+    "- Lambda abstraction must use the λ character, for example λx.λy.x.",
+    "- Function application uses parentheses and comma-separated arguments.",
+    "- f(x,y,z) means (((f x) y) z).",
+    "- Whitespace application is invalid. Never write f x, @foo x y, or s n.",
+    "- Use f(x), @foo(x,y), or s(n) instead.",
+    "- Comments begin with //, but avoid comments in the final answer.",
+    "- Top-level definitions may refer to each other and may be recursive.",
+    "",
+    "Valid Examples",
+    "@true  = λt.λf.t",
+    "@false = λt.λf.f",
+    "@not   = λb.λt.λf.b(f,t)",
+    "@main  = @not(@false)",
+    "",
+    "@zero = λf.λx.x",
+    "@succ = λn.λf.λx.f(n(f,x))",
+    "@add  = λm.λn.λf.λx.m(f,n(f,x))",
+    "@main = @add(@succ(@zero),@succ(@succ(@zero)))",
+    "",
+    "Now produce only the .lam source for the task above.",
+  ].join("\n");
+}
+
+function extract_submission(text: string): string {
+  var fence = text.match(/```[a-zA-Z0-9_-]*\n([\s\S]*?)```/);
+  var src = (fence ? fence[1] : text).trim();
+
+  var lines = src.split("\n");
+  var first_def = lines.findIndex(line => line.trim().startsWith("@"));
+  if (first_def >= 0) src = lines.slice(first_def).join("\n").trim();
+
+  return src;
+}
+
+function format_line(result: EvalResult): string {
+  var time = `${result.seconds.toFixed(1)}s`;
+  if (!result.pass) {
+    var error = result.error ? ` ${summarize_error(result.error)}` : "";
+    return `✗ ${result.id.padEnd(18)} ${time}${error}`;
+  }
+
+  var ref =
+    result.ref_bits === undefined ? "new-ref" : `${result.ref_bits} ref`;
+  var saved = result.created_reference ? " saved-ref" : "";
+  var score = (result.score * 100).toFixed(1);
+  return [
+    `✓ ${result.id.padEnd(18)} ${time}`,
+    `${result.bits} bits, ${ref}, score ${score}${saved}`,
+  ].join(" ");
+}
+
+function summarize_error(error: string): string {
+  var lines = error.split("\n").map(line => line.trim()).filter(Boolean);
+  return (
+    lines.find(line => line.startsWith("error:")) ??
+    lines.find(line => line.startsWith("want:")) ??
+    lines[0] ??
+    "failed"
+  );
+}
+
+async function eval_task(
+  task: Task,
+  model: LanguageModel,
+  out_dir: string,
+): Promise<EvalResult> {
+  var started = Date.now();
+  var raw_path = join(out_dir, task.id + ".txt");
+  var lam_path = join(out_dir, task.id + ".lam");
+
+  try {
+    var response = await generateText({
+      model,
+      prompt: task_prompt(task),
+      maxOutputTokens: 16000,
+      timeout: { totalMs: 15 * 60_000 },
+      providerOptions: high_thinking_options(),
+    });
+
+    writeFileSync(raw_path, response.text);
+    var submission = extract_submission(response.text);
+    writeFileSync(lam_path, submission);
+
+    var ref = reference_bits(task.id);
+    var check = run_task(task, submission, ref);
+    var created_reference = false;
+
+    if (check.pass && ref === undefined) {
+      var ref_path = join(import.meta.dir, "..", "sol", task.id + ".lam");
+      writeFileSync(ref_path, submission.trim() + "\n");
+      ref = check.bits;
+      check.score = task_score(check.bits, ref);
+      created_reference = true;
+    }
+
+    return {
+      id: task.id,
+      pass: check.pass,
+      bits: check.bits,
+      ref_bits: ref,
+      score: check.score,
+      seconds: (Date.now() - started) / 1000,
+      created_reference,
+      output_path: lam_path,
+      error: check.errors[0],
+      usage: response.usage,
+    };
+  } catch (e: any) {
+    return {
+      id: task.id,
+      pass: false,
+      bits: 0,
+      score: 0,
+      seconds: (Date.now() - started) / 1000,
+      created_reference: false,
+      error: e?.message ?? String(e),
+    };
+  }
+}
+
+async function run_pool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  var results: R[] = new Array(items.length);
+  var next = 0;
+
+  async function worker() {
+    while (next < items.length) {
+      var index = next++;
+      results[index] = await fn(items[index]);
+    }
+  }
+
+  var workers = [];
+  for (var i = 0; i < Math.min(concurrency, items.length); i++) {
+    workers.push(worker());
+  }
+  await Promise.all(workers);
+  return results;
+}
+
+async function main() {
+  load_keys();
+  var args = parse_args();
+  var model = get_model(args.model);
+  var all_tasks = load_tasks(join(import.meta.dir, "..", "tsk"));
+  var tasks = all_tasks.filter(task => matches_filter(task.id, args.filter));
+  var stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  var out_dir = join(
+    import.meta.dir,
+    "..",
+    ".eval",
+    safe_name(args.model),
+    stamp,
+  );
+  mkdirSync(out_dir, { recursive: true });
+
+  console.log(`model: ${args.model}`);
+  var filter = args.filter ? ` filter=${args.filter}` : "";
+  console.log(`tasks: ${tasks.length}/${all_tasks.length}${filter}`);
+  console.log(`concurrency: ${args.concurrency}`);
+  console.log(`output: ${out_dir}`);
+  console.log("");
+
+  var completed = 0;
+  var results = await run_pool(tasks, args.concurrency, async task => {
+    console.log(`→ ${task.id}`);
+    var result = await eval_task(task, model, out_dir);
+    completed += 1;
+    console.log(`${format_line(result)} (${completed}/${tasks.length})`);
+    return result;
+  });
+
+  var pass = results.filter(r => r.pass).length;
+  var created_refs = results.filter(r => r.created_reference).length;
+  var avg =
+    results.reduce((sum, r) => sum + r.score, 0) /
+    Math.max(results.length, 1);
+  var report = {
+    model: args.model,
+    filter: args.filter,
+    concurrency: args.concurrency,
+    tasks: results.length,
+    pass,
+    created_refs,
+    score: avg * 100,
+    results,
+  };
+
+  var report_path = join(out_dir, "report.json");
+  writeFileSync(report_path, JSON.stringify(report, null, 2));
+
+  console.log("");
+  console.log(`${pass}/${results.length} passed`);
+  console.log(`score: ${(avg * 100).toFixed(1)}`);
+  console.log(`references created: ${created_refs}`);
+  console.log(`report: ${report_path}`);
+}
+
+if (import.meta.main) main();

@@ -1,0 +1,6 @@
+@Z = λs.λz.z
+@S = λn.λs.λz.s(n)
+@add = λa.λb.a(λp.@S(@add(p,b)),b)
+@leq = λa.λb.a(λp.b(λq.@leq(p,q),λt.λf.f),λt.λf.t)
+@go = λn.λk.λnext.@leq(next,n)(@go(n,@S(k),@add(next,@add(@add(@S(k),@S(k)),@S(@Z)))),k)
+@main = λn.@go(n,@Z,@S(@Z))

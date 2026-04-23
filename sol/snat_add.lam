@@ -1,0 +1,1 @@
+@main = λa.λb.a(λp.λs.λz.s(@main(p,b)), b)

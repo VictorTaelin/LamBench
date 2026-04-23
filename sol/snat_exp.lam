@@ -1,0 +1,3 @@
+@add = λa.λb.a(λp.λs.λz.s(@add(p,b)), b)
+@mul = λa.λb.a(λp.@add(b, @mul(p,b)), λs.λz.z)
+@main = λa.λb.b(λq.@mul(a, @main(a,q)), λs.λz.s(λs.λz.z))

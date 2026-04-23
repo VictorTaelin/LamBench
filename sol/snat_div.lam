@@ -1,0 +1,9 @@
+@Z = λs.λz.z
+@T = λa.λb.a
+@F = λa.λb.b
+@isZero = λn.n(λp.@F)(@T)
+@pred = λn.n(λp.p)(@Z)
+@sub = λa.λb.b(λp.@sub(@pred(a),p))(a)
+@geq = λa.λb.@isZero(@sub(b,a))
+@div = λa.λb.@geq(a,b)(λs.λz.s(@div(@sub(a,b),b)))(λs.λz.z)
+@main = λa.λb.@div(a,b)
