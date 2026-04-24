@@ -39,17 +39,28 @@ Problems range from trivial (Church nat addition: `λm.λn.λf.λx.m(f,n(f,x))`)
 
 | Model | Score |
 |-------|-------|
-| GPT-5.4 | 101/120 (84.2%) |
-| GPT-5.5 | 93/120 (77.5%) |
-| Opus 4.7 | 84/120 (70.0%) |
-| Gemini 3.1 Pro | 81/120 (67.5%) |
-| Opus 4.6 | 56/120 (46.7%) |
-| Gemini 3.1 Flash Lite | 48/120 (40.0%) |
-| Sonnet 4.6 | 47/120 (39.2%) |
+| GPT-5.3 Codex | 108/120 (90.0%) |
+| Opus 4.6 | 108/120 (90.0%) |
+| Opus 4.7 | 106/120 (88.3%) |
+| Gemini 3.1 Pro | 106/120 (88.3%) |
+| GPT-5.4 | 96/120 (80.0%) |
+| GPT-5.5 | 89/120 (74.2%) |
+| GPT-5.2 | 88/120 (73.3%) |
+| Sonnet 4.6 | 87/120 (72.5%) |
+| GPT-5.4-mini | 72/120 (60.0%) |
+| Qwen 3.6 Plus | 57/120 (47.5%) |
+| Grok 4.20 | 55/120 (45.8%) |
+| DeepSeek v4 Pro | 55/120 (45.8%) |
+| Gemini 3.1 Flash Lite | 47/120 (39.2%) |
+| GLM 5.1 | 38/120 (31.7%) |
+| Kimi K2 Thinking | 34/120 (28.3%) |
+| MiMo v2.5 Pro | 32/120 (26.7%) |
+| Gemma 4 31B IT | 30/120 (25.0%) |
+| Kimi K2.6 | 26/120 (21.7%) |
 | GPT-5.3 Codex Spark | 14/120 (11.7%) |
+| GPT-5.1 | 0/120 (0.0%) |
 | Opus 4.5 | 0/120 (0.0%) |
 | Sonnet 4.5 | 0/120 (0.0%) |
-| GPT-5.1 | 0/120 (0.0%) |
 
 ## Running the Benchmark
 
@@ -62,23 +73,25 @@ Problems range from trivial (Church nat addition: `λm.λn.λf.λx.m(f,n(f,x))`)
 
 ```bash
 bun install
-bun eval <provider/model>
+bun bench <provider/model>
 
 # Examples:
-bun eval openai/gpt-5.5
-bun eval anthropic/opus-4.7
-bun eval google/gemini-3.1-pro-preview
+bun bench openai/gpt-5.5
+bun bench anthropic/opus-4.7
+bun bench google/gemini-3.1-pro-preview
 
 # With options:
-bun eval openai/gpt-5.5 --filter algo_ --concurrency 8 --timeout 300
+bun bench openai/gpt-5.5 --filter algo_ --concurrency 8 --timeout 300
 ```
+
+Supported flags: `--filter <prefix>`, `--concurrency <n>`, `--timeout <seconds>`, `--no-reasoning`.
 
 Results are written to `res/` as timestamped text files.
 
 ### Rebuild the landing page
 
 ```bash
-bun run site
+bun run build
 ```
 
 This parses all `res/` files (using the latest run per model) and generates `docs/index.html`.
@@ -87,17 +100,16 @@ This parses all `res/` files (using the latest run per model) and generates `doc
 
 ```
 lambench/
-├── tsk/           # 120 task files (.tsk) — problem descriptions + test cases
-├── lam/           # Reference solutions (.lam)
-├── res/           # Evaluation results (timestamped per model)
+├── tsk/              # 120 task files (.tsk) — problem descriptions + test cases
+├── lam/              # Reference solutions (.lam)
+├── res/              # Evaluation results (timestamped per model)
 ├── src/
-│   ├── eval.ts    # Main evaluation harness
-│   ├── run.ts     # Task runner (normalizes λ-terms, checks output)
-│   ├── parse.ts   # Task file parser
-│   └── types.ts   # Type definitions
-├── build-site.ts  # Landing page generator
+│   ├── bench.ts      # Main evaluation harness (CLI entry: `bun bench`)
+│   └── check.ts      # Task loader + runner (normalizes λ-terms, checks output)
+├── scripts/
+│   └── build.ts      # Landing page generator (CLI entry: `bun run build`)
 ├── docs/
-│   └── index.html # Generated landing page (GitHub Pages)
+│   └── index.html    # Generated landing page (GitHub Pages)
 └── README.md
 ```
 
