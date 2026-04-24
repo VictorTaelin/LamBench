@@ -1,5 +1,5 @@
 import { spawn } from "child_process";
-import { generateText, type LanguageModel } from "ai";
+import { generateText, streamText, type LanguageModel } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -7,11 +7,11 @@ import { xai } from "@ai-sdk/xai";
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-import type { Task } from "./types";
-import { load_tasks } from "./parse";
-import { REF_DIR, reference_bits, run_task, task_score } from "./run";
+import type { Task } from "./check";
+import { load_tasks } from "./check";
+import { REF_DIR, reference_bits, run_task, task_score } from "./check";
 
-const DEFAULT_TASK_TIMEOUT_MS = 600 * 1000;
+const DEFAULT_TASK_TIMEOUT_MS = 1200 * 1000;
 
 type EvalResult = {
   id: string;
@@ -39,7 +39,80 @@ type Args = {
   filter?: string;
   concurrency: number;
   timeout_ms: number;
+  no_reasoning: boolean;
 };
+
+function task_prompt(task: Task): string {
+  var task_path = join(import.meta.dir, "..", "tsk", task.id + ".tsk");
+  var task_text = readFileSync(task_path, "utf-8").trim();
+  return `You are solving one problem from Lambench, a benchmark of pure
+lambda-calculus programming tasks.
+
+Your goal is to produce the smallest correct Lamb program you can.
+Correctness is mandatory.
+
+The evaluator will append test expressions that call @main, normalize them
+with the Lamb interpreter, and compare the normalized output with the
+expected result.
+
+Task
+id: ${task.id}
+The task file below contains a natural-language specification followed by
+test cases after the --- separator.
+
+Each test case is two lines: an expression that uses @main, then the
+expected normalized output prefixed with =.
+
+\`\`\`text
+${task_text}
+\`\`\`
+
+Output Requirement
+Return exactly one .lam program and nothing else.
+Do not use Markdown fences.
+Do not explain your solution.
+
+The program must define @main.
+You may define helper functions with top-level @definitions.
+The last top-level definition is the entry point.
+Make @main the last definition.
+
+Lamb Grammar
+A .lam file is a book of top-level definitions:
+@name = term
+
+Terms use this grammar:
+- variable: name
+- reference: @name
+- lambda: λname.term
+- application: term(arg1,arg2,...,argN)
+- grouping: (term)
+
+Important syntax details:
+- Names may contain only ASCII letters, digits, and underscore.
+- Valid name characters are [0-9A-Za-z_].
+- Do not use apostrophes, hyphens, Unicode subscripts, or punctuation.
+- Lambda abstraction must use the λ character, for example λx.λy.x.
+- Function application uses parentheses and comma-separated arguments.
+- f(x,y,z) means (((f x) y) z).
+- Whitespace application is invalid. Never write f x, @foo x y, or s n.
+- Use f(x), @foo(x,y), or s(n) instead.
+- Comments begin with //, but avoid comments in the final answer.
+- Top-level definitions may refer to each other and may be recursive.
+
+Valid Examples
+@true  = λt.λf.t
+@false = λt.λf.f
+@not   = λb.λt.λf.b(f,t)
+@main  = @not(@false)
+
+@zero = λf.λx.x
+@succ = λn.λf.λx.f(n(f,x))
+@add  = λm.λn.λf.λx.m(f,n(f,x))
+@main = @add(@succ(@zero),@succ(@succ(@zero)))
+
+Now produce only the .lam source for the task above.`;
+}
 
 function token_path(name: string): string {
   return join(homedir(), ".config", name);
@@ -71,6 +144,7 @@ function load_keys() {
   set_env("GOOGLE_GENERATIVE_AI_API_KEY", ["gemini.token", "google.token"]);
   set_env("XAI_API_KEY", ["xai.token", "xai_normal.token"]);
   set_env("OPENROUTER_API_KEY", ["openrouter.token"]);
+  set_env("MOONSHOT_API_KEY", ["moonshot.token", "kimi.token"]);
 }
 
 function parse_args(): Args {
@@ -87,6 +161,7 @@ function parse_args(): Args {
     model: args[0],
     concurrency: 4,
     timeout_ms: DEFAULT_TASK_TIMEOUT_MS,
+    no_reasoning: false,
   };
   for (var i = 1; i < args.length; i++) {
     var arg = args[i];
@@ -104,6 +179,7 @@ function parse_args(): Args {
     else if (arg.startsWith("--timeout=")) {
       parsed.timeout_ms = Number(arg.slice("--timeout=".length)) * 1000;
     }
+    else if (arg === "--no-reasoning") parsed.no_reasoning = true;
     else throw new Error(`unknown argument: ${arg}`);
   }
 
@@ -182,7 +258,18 @@ function get_model(spec: string): EvalModel {
     });
     return { spec, provider, model_id, sdk: openrouter(model_id) };
   }
-
+  if (
+    provider === "moonshotai" ||
+    provider === "moonshot" ||
+    provider === "kimi"
+  ) {
+    var moonshot = createOpenAICompatible({
+      name: "moonshotai",
+      apiKey: process.env.MOONSHOT_API_KEY,
+      baseURL: "https://api.moonshot.ai/v1",
+    });
+    return { spec, provider, model_id, sdk: moonshot(model_id) };
+  }
   return { spec, provider, model_id, sdk: spec };
 }
 
@@ -268,84 +355,13 @@ function high_thinking_options() {
     openrouter: {
       reasoningEffort: "high",
     },
+    moonshotai: {
+      thinking: { type: "enabled" },
+    },
     openaiCompatible: {
       reasoningEffort: "high",
     },
   };
-}
-
-function task_prompt(task: Task): string {
-  var task_path = join(import.meta.dir, "..", "tsk", task.id + ".tsk");
-  var task_text = readFileSync(task_path, "utf-8").trim();
-  return [
-    "You are solving one problem from Lambench, a benchmark of pure",
-    "lambda-calculus programming tasks.",
-    "",
-    "Your goal is to produce the smallest correct Lamb program you can.",
-    "Correctness is mandatory.",
-    "",
-    "The evaluator will append test expressions that call @main, normalize",
-    "them with the Lamb interpreter, and compare the normalized output with",
-    "the expected result.",
-    "",
-    "Task",
-    `id: ${task.id}`,
-    "The task file below contains a natural-language specification followed",
-    "by test cases after the --- separator.",
-    "",
-    "Each test case is two lines: an expression that uses @main, then the",
-    "expected normalized output prefixed with =.",
-    "",
-    "```text",
-    task_text,
-    "```",
-    "",
-    "Output Requirement",
-    "Return exactly one .lam program and nothing else.",
-    "Do not use Markdown fences.",
-    "Do not explain your solution.",
-    "",
-    "The program must define @main.",
-    "You may define helper functions with top-level @definitions.",
-    "The last top-level definition is the entry point.",
-    "Make @main the last definition.",
-    "",
-    "Lamb Grammar",
-    "A .lam file is a book of top-level definitions:",
-    "@name = term",
-    "",
-    "Terms use this grammar:",
-    "- variable: name",
-    "- reference: @name",
-    "- lambda: λname.term",
-    "- application: term(arg1,arg2,...,argN)",
-    "- grouping: (term)",
-    "",
-    "Important syntax details:",
-    "- Names may contain only ASCII letters, digits, and underscore.",
-    "- Valid name characters are [0-9A-Za-z_].",
-    "- Do not use apostrophes, hyphens, Unicode subscripts, or punctuation.",
-    "- Lambda abstraction must use the λ character, for example λx.λy.x.",
-    "- Function application uses parentheses and comma-separated arguments.",
-    "- f(x,y,z) means (((f x) y) z).",
-    "- Whitespace application is invalid. Never write f x, @foo x y, or s n.",
-    "- Use f(x), @foo(x,y), or s(n) instead.",
-    "- Comments begin with //, but avoid comments in the final answer.",
-    "- Top-level definitions may refer to each other and may be recursive.",
-    "",
-    "Valid Examples",
-    "@true  = λt.λf.t",
-    "@false = λt.λf.f",
-    "@not   = λb.λt.λf.b(f,t)",
-    "@main  = @not(@false)",
-    "",
-    "@zero = λf.λx.x",
-    "@succ = λn.λf.λx.f(n(f,x))",
-    "@add  = λm.λn.λf.λx.m(f,n(f,x))",
-    "@main = @add(@succ(@zero),@succ(@succ(@zero)))",
-    "",
-    "Now produce only the .lam source for the task above.",
-  ].join("\n");
 }
 
 function extract_submission(text: string): string {
@@ -545,6 +561,7 @@ async function generate_solution(
   out_dir: string,
   signal: AbortSignal,
   timeout_ms: number,
+  no_reasoning: boolean,
 ): Promise<{ text: string; usage?: unknown }> {
   var prompt = task_prompt(task);
 
@@ -563,19 +580,22 @@ async function generate_solution(
     throw new Error(`missing SDK model for ${model.spec}`);
   }
 
-  var response = await generateText({
+  // Use streaming to avoid Node/Bun's 300s default fetch headers/body timeout:
+  // a non-streaming generateText() waits for the full response in one HTTP call,
+  // so reasoning traces longer than 5 minutes die with "The operation timed out.".
+  // Streaming resets the idle timer on each chunk, so long reasoning works.
+  var stream = streamText({
     model: model.sdk,
     prompt,
-    maxOutputTokens: 16000,
     abortSignal: signal,
     timeout: { totalMs: timeout_ms },
-    providerOptions: high_thinking_options(),
+    providerOptions: no_reasoning ? {} : high_thinking_options(),
   });
 
-  return {
-    text: response.text,
-    usage: response.usage,
-  };
+  var text = await stream.text;
+  var usage = await stream.usage;
+
+  return { text, usage };
 }
 
 function timeout_result(
@@ -612,6 +632,7 @@ async function eval_task_body(
   started: number,
   deadline_ms: number,
   signal: AbortSignal,
+  no_reasoning: boolean,
 ): Promise<EvalResult> {
   var raw_path = join(out_dir, task.id + ".txt");
   var lam_path = join(out_dir, task.id + ".lam");
@@ -622,6 +643,7 @@ async function eval_task_body(
     out_dir,
     signal,
     remaining_task_ms(deadline_ms),
+    no_reasoning,
   );
   throw_if_aborted(signal);
 
@@ -662,6 +684,7 @@ async function eval_task(
   model: EvalModel,
   out_dir: string,
   timeout_ms: number,
+  no_reasoning: boolean,
 ): Promise<EvalResult> {
   var started = Date.now();
   var abort = new AbortController();
@@ -670,7 +693,7 @@ async function eval_task(
     var deadline_ms = started + timeout_ms;
     var timeout = timeout_result(timeout_ms, abort);
     return await Promise.race([
-      eval_task_body(task, model, out_dir, started, deadline_ms, abort.signal),
+      eval_task_body(task, model, out_dir, started, deadline_ms, abort.signal, no_reasoning),
       timeout.promise,
     ]);
   } catch (e: any) {
@@ -695,9 +718,11 @@ function build_text_report(
   total_tasks: number,
 ): string {
   var lines: string[] = [];
+  var right = results.filter(result => result.pass).length;
 
   lines.push(`score: ${score.toFixed(1)}`);
-  lines.push(`evaluated: ${results.length}/${total_tasks}`);
+  lines.push(`evals: ${results.length}/${total_tasks}`);
+  lines.push(`right: ${right}/${total_tasks}`);
   lines.push("");
   lines.push("task scores:");
 
@@ -773,13 +798,14 @@ async function main() {
   console.log(`tasks: ${tasks.length}/${all_tasks.length}${filter}`);
   console.log(`concurrency: ${args.concurrency}`);
   console.log(`timeout: ${Math.floor(args.timeout_ms / 1000)}s/task`);
+  if (args.no_reasoning) console.log(`reasoning: disabled`);
   console.log(`output: ${out_dir}`);
   console.log("");
 
   var completed = 0;
   var results = await run_pool(tasks, args.concurrency, async task => {
     console.log(`→ ${task.id}`);
-    var result = await eval_task(task, model, out_dir, args.timeout_ms);
+    var result = await eval_task(task, model, out_dir, args.timeout_ms, args.no_reasoning);
     completed += 1;
     console.log(`${format_line(result)} (${completed}/${tasks.length})`);
     return result;

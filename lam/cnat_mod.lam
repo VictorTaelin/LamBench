@@ -1,0 +1,8 @@
+@true=λt.λf.t
+@false=λt.λf.f
+@if=λb.λt.λe.b(t,e)
+@pred=λn.λf.λx.n(λg.λh.h(g(f)),λu.x,λu.u)
+@sub=λm.λn.n(@pred,m)
+@iszero=λn.n(λx.@false,@true)
+@leq=λm.λn.@iszero(@sub(m,n))
+@main=λa.λb.@if(@leq(b,a),@main(@sub(a,b),b),a)

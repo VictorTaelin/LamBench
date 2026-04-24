@@ -1,0 +1,13 @@
+@t=λa.λb.a
+@f=λa.λb.b
+@s=λn.λf.λx.f(n(f,x))
+@p=λn.λf.λx.n(λg.λh.h(g(f)),λu.x,λu.u)
+@u=λm.λn.n(@p,m)
+@o=λn.n(λx.@f,@t)
+@l=λm.λn.@o(@u(n,m),@f,@t)
+@d=λn.λf.λx.n(f,n(f,x))
+@e=λn.@s(@d(n))
+@q=@s(@s(@f))
+@r=λn.λd.@l(n,d,n,@r(@u(n,d),d))
+@c=λn.λd.@l(d,n,@o(@r(n,d),@f,@c(n,@s(d))),@t)
+@main=λb.(λn.@l(n,@q,@f,@c(n,@q)))(b(@d,@e,@f))

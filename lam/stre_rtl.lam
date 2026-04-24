@@ -1,0 +1,5 @@
+@leaf=λx.λn.λl.l(x)
+@node=λa.λb.λn.λl.n(a,b)
+@first=λt.t(λa.λb.@first(a),λx.x)
+@go=λt.λz.λk.t(λa.λb.@go(b,z,λr.λf.@go(a,f,λl.λg.k(@node(l,r),g))),λx.k(@leaf(z),x))
+@main=λt.@go(t,@first(t),λr.λx.r)

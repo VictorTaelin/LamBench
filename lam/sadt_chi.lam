@@ -1,0 +1,6 @@
+@nil=λc.λn.n
+@cons=λh.λt.λc.λn.c(h,t)
+@g=λs.λk.s(λm.λt.λx.@g(t,λr.k(@cons(x,r))),k(@nil))
+@h=λs.@g(s,λr.r)
+@run=λv.λd.d(λs.λt.@run(v(@h(s)),t),v)
+@main=λd.λv.@run(v,d)

@@ -1,0 +1,1 @@
+@main=λa.λm.λz.λl.λr.l(λx.λs.r(λy.λt.a(m(x,y),@main(a,m,z,s,t)),z),z)

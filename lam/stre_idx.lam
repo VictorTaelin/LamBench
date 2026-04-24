@@ -1,0 +1,2 @@
+@a=λf.λi.λt.λc.t(λa.λb.@a(f,i,a,λx.λj.@a(f,j,b,λy.λk.c(λn.λl.n(x,y),k))),λx.c(λn.λl.l(f(i,x)),λs.λz.s(i)))
+@main=λf.λt.@a(f,λs.λz.z,t,λx.λi.x)

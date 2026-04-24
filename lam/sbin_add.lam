@@ -1,0 +1,6 @@
+@E=λo.λi.λe.e
+@O=λx.λo.λi.λe.o(x)
+@I=λx.λo.λi.λe.i(x)
+@inc=λn.n(λx.@I(x),λx.@O(@inc(x)),@I(@E))
+@add=λa.λb.a(λx.b(λy.@O(@add(x,y)),λy.@I(@add(x,y)),a),λx.b(λy.@I(@add(x,y)),λy.@O(@inc(@add(x,y))),a),b)
+@main=@add

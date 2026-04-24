@@ -1,0 +1,2 @@
+@p=λn.λf.λx.n(λg.λh.h(g(f)),λu.x,λu.u)
+@main=λn.λi.λt.t(i(λx.λy.x,i(@p,@p(n))(λr.λx.λy.r(x),λx.x)))

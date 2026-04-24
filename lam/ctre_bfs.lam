@@ -1,0 +1,7 @@
+@n=λc.λn.n
+@c=λh.λt.λc.λn.c(h,t)
+@z=λx.λy.x(λa.λb.y(λd.λe.@c(λr.a(d(r)),@z(b,e)),x),y)
+@l=λx.@c(λr.@c(x,r),@n)
+@o=λx.λy.@c(λr.r,@z(x,y))
+@f=λx.x(λa.λb.a(@f(b)),@n)
+@main=λt.@f(t(@o,@l))

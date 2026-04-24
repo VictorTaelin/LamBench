@@ -1,0 +1,12 @@
+@t=λa.λb.a
+@f=λa.λb.b
+@z=λf.λx.x
+@s=λn.λf.λx.f(n(f,x))
+@p=λn.λf.λx.n(λg.λh.h(g(f)),λu.x,λu.u)
+@sub=λm.λn.n(@p,m)
+@isz=λn.n(λx.@f,@t)
+@le=λm.λn.@isz(@sub(m,n))
+@mod=λm.λn.@le(n,m)(@mod(@sub(m,n),n),m)
+@gcd=λa.λb.@isz(b)(a,@gcd(b,@mod(a,b)))
+@cnt=λn.λk.@isz(k)(@z,@isz(@p(@gcd(n,k)))(@s(@cnt(n,@p(k))),@cnt(n,@p(k))))
+@main=λn.@cnt(n,n)

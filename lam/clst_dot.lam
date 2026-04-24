@@ -1,0 +1,8 @@
+@P=λa.λb.λf.f(a,b)
+@F=λp.p(λa.λb.a)
+@S=λp.p(λa.λb.b)
+@N=λc.λn.n
+@K=λh.λt.λc.λn.c(h,t(c,n))
+@H=λL.L(λh.λr.h,λx.x)
+@T=λL.@F(L(λh.λp.@P(@S(p),@K(h,@S(p))),@P(@N,@N)))
+@main=λA.λM.λZ.λX.λY.X(λa.λk.λl.A(M(a,@H(l)),k(@T(l))),λl.Z)(Y)

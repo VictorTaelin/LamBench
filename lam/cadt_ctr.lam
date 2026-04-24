@@ -1,0 +1,7 @@
+@cons = λh.λt.λc.λn.c(h,t)
+@nil = λc.λn.n
+@take = λl.λk.l(λh.λt.λf.@take(t,λfs.k(@cons(f,fs))),k(@nil))
+@apply = λf.λl.l(λh.λt.@apply(f(h),t),f)
+@nth = λl.λn.n(λp.l(λh.λt.@nth(t,p),λx.x),l(λh.λt.h,λx.x))
+@mapa = λfs.λhs.fs(λh.λt.@cons(@apply(h,hs),@mapa(t,hs)),@nil)
+@main = λd.λn.@take(@nth(d,n),λfs.@take(d,λhs.@apply(@nth(hs,n),@mapa(fs,hs))))

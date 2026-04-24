@@ -3,10 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "eval": "bun src/eval.ts",
-    "fix-score": "bun src/fix-score.ts",
-    "test": "bun src/run.ts",
-    "bench": "bun src/bench.ts"
+    "bench": "bun src/bench.ts",
+    "check": "bun src/check.ts",
+    "build": "bun scripts/build.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.71",

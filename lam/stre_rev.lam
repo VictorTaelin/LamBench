@@ -1,0 +1,1 @@
+@main=λt.t(λa.λb.λn.λl.n(@main(b),@main(a)),λx.λn.λl.l(x))

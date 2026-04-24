@@ -1,0 +1,6 @@
+@nil = λc.λn.n
+@cons = λh.λt.λc.λn.c(h,t(c,n))
+@base = λe.λf.e
+@step = λx.λa.λe.λf.a(f(@nil,x),λp.λl.f(@cons(x,p),l))
+@ext = λa.a(@nil,λp.λl.@cons(l,p))
+@main = λL.@ext(L(@step,@base))

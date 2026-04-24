@@ -1,0 +1,4 @@
+@i=λd.λb.d(λs.λt.λx.@i(t,b),b)
+@c=λs.λk.λa.s(λm.λt.λx.@c(t,k,λf.a(f,x)),k(a))
+@b=λd.λp.λf.d(λs.λt.@b(t,λz.p(λh.z),f(@c(s,λa.p(λh.@i(t,a(h))),λx.x))),f)
+@main=λd.λv.@b(d,λx.x,v)

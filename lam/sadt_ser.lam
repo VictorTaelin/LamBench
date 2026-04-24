@@ -1,0 +1,14 @@
+@T=λa.λb.a
+@F=λa.λb.b
+@N=λc.λn.n
+@C=λh.λt.λc.λn.c(h,t)
+@P=λa.λb.λp.p(a,b)
+@A=λx.λy.x(λh.λt.@C(h,@A(t,y)),y)
+@Hf=λl.l(λh.λt.@C(h,@Hs(t)),@N)
+@Hs=λl.l(λh.λt.@Hf(t),@N)
+@W=λl.l(λh.λt.t(λx.λy.@C(@F,@W(@Hf(l))),@N),@N)
+@Ip=λl.l(λh.λt.@Ip(t,λc.λr.c(h(@P(@T,@C(@F,r)),@P(@F,@C(@T,r))),@P(@F,@C(h,r)))),@P(@T,@N))
+@I=λl.@Ip(l,λc.λr.r)
+@G=λd.λf.λa.f(λu.λr.λx.@G(d,r,@A(a,@main(d,x))),a)
+@R=λd.λs.λb.λv.s(λf.λr.@R(d,r,@I(b),v(@G(d,f,b))),v)
+@main=λd.λv.@R(d,d,@W(d),v)

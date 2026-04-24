@@ -1,0 +1,17 @@
+@tru=λt.λf.t
+@fls=λt.λf.f
+@z=λs.λz.z
+@s=λn.λs.λz.s(n)
+@p=λn.n(λx.x,@z)
+@lam=λb.λl.λa.λv.l(b)
+@app=λf.λx.λl.λa.λv.a(f,x)
+@var=λi.λl.λa.λv.v(i)
+@lt=λm.λn.m(λpm.n(λpn.@lt(pm,pn),@fls),n(λpn.@tru,@fls))
+@eq=λm.λn.m(λpm.n(λpn.@eq(pm,pn),@fls),n(λpn.@fls,@tru))
+@up=λc.λt.t(λb.@lam(@up(@s(c),b)),λf.λx.@app(@up(c,f),@up(c,x)),λk.@lt(k,c)(@var(k),@var(@s(k))))
+@dn=λc.λt.t(λb.@lam(@dn(@s(c),b)),λf.λx.@app(@dn(c,f),@dn(c,x)),λk.@lt(k,c)(@var(k),@var(@p(k))))
+@sub=λj.λs.λt.t(λb.@lam(@sub(@s(j),@up(@z,s),b)),λf.λx.@app(@sub(j,s,f),@sub(j,s,x)),λk.@eq(k,j)(s,@var(k)))
+@top=λs.λt.@dn(@z,@sub(@z,@up(@z,s),t))
+@nf=λt.t(λb.@lam(@nf(b)),λf.λx.@nfa(@nf(f),x),λi.@var(i))
+@nfa=λf.λx.f(λb.@nf(@top(x,b)),λg.λa.@app(f,@nf(x)),λi.@app(f,@nf(x)))
+@main=@nf

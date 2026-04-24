@@ -1,0 +1,7 @@
+@n=λc.λn.n
+@a=λf.λx.x(λh.λt.@a(f(h),t),f)
+@l=λx.λk.x(λh.λt.λv.@l(t,λr.k(λc.λn.c(v,r))),k(@n))
+@f=λd.λh.λv.@a(v,@c(d,h,d,h))
+@z=λd.λh.λs.λx.s(λm.λs1.x(λv.λx1.λc.λn.c(m(λy.@f(d,h,y),v),@z(d,h,s1,x1)),@n),@n)
+@c=λd.λh.λs.λk.s(λp.λs1.k(λq.λk1.λc.λn.c(@l(p,λx.@a(q,@z(d,h,p,x))),@c(d,h,s1,k1)),@n),@n)
+@main=λd.λv.@l(d,λh.@f(d,h,v))

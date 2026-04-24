@@ -1,0 +1,4 @@
+@nil=λc.λn.n
+@cons=λh.λt.λc.λn.c(h,t)
+@go=λk.λx.λs.s(λy.λz.@go(λr.k(@cons(x,r)),y,z),@cons(x,k(@nil)))
+@main=λs.s(λx.λy.@go(λr.r,x,y),@nil)

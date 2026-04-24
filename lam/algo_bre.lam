@@ -1,0 +1,11 @@
+@Z=λa.λb.b
+@S=λn.λs.λz.s(n)
+@P=λx.λy.λp.p(x,y)
+@C=λh.λt.λc.λn.c(h,t)
+@a=λm.λn.m(λp.@S(@a(p,n)),n)
+@b=λm.λn.n(λp.m(λq.@b(q,p),@Z),m)
+@l=λm.λn.m(λp.n(λq.@l(p,q),@Z),λt.λf.t)
+@h=λn.n(λp.p(λq.@S(@h(q)),@Z),@Z)
+@f=λx.λy.λr.λe.λc.λk.@C(@P(x,y),r(λp.@l(e,k)(@f(@S(x),y,p,e,c,@b(k,e)),@f(@S(x),@S(y),p,e,c,@a(c,k))),@Z))
+@g=λx.λy.λr.λd.λc.λk.@C(@P(x,y),r(λp.@l(d,k)(@g(x,@S(y),p,d,c,@b(k,d)),@g(@S(x),@S(y),p,d,c,@a(c,k))),@Z))
+@main=λu.λv.u(λx.λy.v(λX.λY.(λd.λe.@l(e,d)(@f(x,y,d,e,@b(d,e),@h(d)),@g(x,y,e,d,@b(e,d),@h(e))))(@b(X,x),@b(Y,y))))

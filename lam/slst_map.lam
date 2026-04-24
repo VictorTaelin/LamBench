@@ -1,0 +1,1 @@
+@main=λa.λb.b(λc.λd.λe.λf.e(a(c),@main(a,d)),λc.λd.d)

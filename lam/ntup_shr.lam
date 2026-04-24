@@ -1,0 +1,4 @@
+@n=λc.λn.n
+@c=λx.λs.λc.λn.c(x,s(c,n))
+@o=λa.λb.λs.λn.s(a,b)
+@main=λn.λp.λk.p(n(λr.λq.λx.r(λl.q(l(λa.λb.@o(a,@c(x,b)),@o(x,@n)))),λa.a(@n),λx.x))(@c,@n)(λx.λr.λa.r(a(x)),λa.a,k)

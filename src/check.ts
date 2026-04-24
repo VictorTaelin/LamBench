@@ -3,14 +3,75 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   statSync,
   writeFileSync,
 } from "fs";
 import { basename, join } from "path";
-import type { Task, Result } from "./types";
-import { parse_task, load_tasks } from "./parse";
+
+// ── Types ───────────────────────────────────────────────────────────
+
+export type Test = {
+  expr: string;
+  want: string;
+};
+
+export type Task = {
+  id:     string;
+  desc:   string;
+  tests:  Test[];
+};
+
+export type Result = {
+  id:     string;
+  pass:   boolean;
+  bits:   number;
+  score:  number;
+  errors: string[];
+};
+
+// ── Task parsing ────────────────────────────────────────────────────
+
+// Parses a .tsk file into a Task.
+// Format: 2 sections separated by "---" on its own line
+//   Section 1: description text
+//   Section 2: test cases, each is two lines:
+//              expression using @main
+//              = expected_output
+export function parse_task(path: string): Task {
+  var id   = basename(path, ".tsk");
+  var text = readFileSync(path, "utf-8");
+  var secs = text.split(/\n---\n/);
+  if (secs.length !== 2) throw `${id}: expected 2 sections, got ${secs.length}`;
+
+  var desc = secs[0].trim();
+
+  // Section 2: test pairs (expr line + "= expected" line)
+  var lines = secs[1].trim().split("\n").filter(l => l.trim() !== "");
+  var tests: Test[] = [];
+  for (var i = 0; i < lines.length; i += 2) {
+    var expr = lines[i].trim();
+    var want_line = lines[i + 1];
+    if (!want_line || !want_line.startsWith("= ")) {
+      throw `${id}: line ${i + 2}: expected "= ..." after expression`;
+    }
+    tests.push({ expr, want: want_line.slice(2).trim() });
+  }
+
+  return { id, desc, tests };
+}
+
+// Load all tasks from tsk/ directory
+export function load_tasks(dir: string): Task[] {
+  var files = readdirSync(dir).filter(f => f.endsWith(".tsk")).sort();
+  return files.map(f => parse_task(join(dir, f)));
+}
+
+// ── Lam runtime ─────────────────────────────────────────────────────
 
 export const REF_DIR = join(import.meta.dir, "..", "lam");
+export const LAM_BIN = process.env.LAM_BIN ?? choose_lam_bin();
+export const LAM_TIMEOUT_MS = 10_000;
 
 var TMP = join(import.meta.dir, "..", ".tmp");
 var TMP_ID = 0;
@@ -24,28 +85,37 @@ function tmp_file(name: string): string {
   return join(TMP, `${process.pid}-${TMP_ID}-${name}.lam`);
 }
 
-export function lam_run(src: string, timeout = 10_000): string {
+function choose_lam_bin(): string {
+  var res = spawnSync("lam-hs", ["--help"], {
+    encoding: "utf-8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  return res.status === 0 ? "lam-hs" : "lam";
+}
+
+export function lam_run(src: string, timeout = LAM_TIMEOUT_MS): string {
   mkdirSync(TMP, { recursive: true });
   var file = tmp_file("run");
   writeFileSync(file, src);
   return run_lam([file], timeout).trim();
 }
 
-function normalize(term: string, timeout = 10_000): string {
+function normalize(term: string, timeout = LAM_TIMEOUT_MS): string {
   return lam_run("@main = " + term, timeout);
 }
 
-export function bin_size(src: string, timeout = 10_000): number {
+export function bin_size(src: string, timeout = LAM_TIMEOUT_MS): number {
   mkdirSync(TMP, { recursive: true });
   var file = tmp_file("size");
   writeFileSync(file, src);
   return run_lam([file, "--to-bin"], timeout).trim().length;
 }
 
-function run_lam(args: string[], timeout = 10_000): string {
-  var res = spawnSync("lam", args, {
+function run_lam(args: string[], timeout = LAM_TIMEOUT_MS): string {
+  var lam_timeout = Math.min(timeout, LAM_TIMEOUT_MS);
+  var res = spawnSync(LAM_BIN, args, {
     encoding: "utf-8",
-    timeout,
+    timeout: lam_timeout,
     stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...process.env,
@@ -81,6 +151,8 @@ function clean_lam_error(msg: string): string {
   return hit;
 }
 
+// ── Scoring ─────────────────────────────────────────────────────────
+
 // Per-task score:
 // reference bits = 0.5, each halving -> +0.25, each doubling -> x0.5
 export function task_score(bits: number, reference_bits: number): number {
@@ -91,18 +163,20 @@ export function task_score(bits: number, reference_bits: number): number {
 
 export function reference_bits(
   task_id: string,
-  timeout = 10_000,
+  timeout = LAM_TIMEOUT_MS,
 ): number | undefined {
   var path = join(REF_DIR, task_id + ".lam");
   if (!existsSync(path)) return undefined;
   return bin_size(readFileSync(path, "utf-8").trim(), timeout);
 }
 
+// ── Task runner ─────────────────────────────────────────────────────
+
 function remaining_timeout(deadline_ms?: number): number {
-  if (deadline_ms === undefined) return 10_000;
+  if (deadline_ms === undefined) return LAM_TIMEOUT_MS;
   var remaining = deadline_ms - Date.now();
   if (remaining <= 0) throw new Error("task timed out");
-  return Math.max(1, Math.min(10_000, remaining));
+  return Math.max(1, Math.min(LAM_TIMEOUT_MS, remaining));
 }
 
 function is_timeout_error(error: any): boolean {
@@ -164,6 +238,8 @@ export function show_result(r: Result): string {
   return lines.join("\n");
 }
 
+// ── CLI ─────────────────────────────────────────────────────────────
+
 function run_file(path: string): Result {
   var task_id = basename(path, ".lam");
   var tsk_dir = join(import.meta.dir, "..", "tsk");
@@ -200,13 +276,13 @@ function run_dir(path: string): Result[] {
   return results;
 }
 
-// CLI: bun src/run.ts <submission>
+// CLI: bun src/check.ts <submission>
 // submission can be a directory of task-named .lam files,
 // or one task-named .lam file.
 async function main() {
   var args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error("usage: bun src/run.ts <submissions_dir|submission.lam>");
+    console.error("usage: bun src/check.ts <submissions_dir|submission.lam>");
     process.exit(1);
   }
 

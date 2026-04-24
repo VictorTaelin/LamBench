@@ -1,0 +1,12 @@
+@E=λo.λi.λe.e
+@O=λx.λo.λi.λe.o(x)
+@I=λx.λo.λi.λe.i(x)
+@A=λn.n(λx.@I(x),λx.@O(@A(x)),@I(@E))
+@V=λn.n(@A,@E)
+@B=λn.n(λx.λf.λy.@B(x,f,@B(x,f,y)),λx.λf.λy.f(@B(x,f,@B(x,f,y))),λf.λy.y)
+@P=λn.λf.λx.n(λg.λh.h(g(f)),λu.x,λu.u)
+@R=λm.λn.n(@P,m)
+@Q=λn.n(λx.λt.λf.f,λt.λf.t)
+@M=λm.λn.@Q(@R(n,m),@M(@R(m,n),n),m)
+@G=λm.λn.@Q(n,m,@G(n,@M(m,n)))
+@main=λa.λb.@V(@G(@B(a),@B(b)))

@@ -1,0 +1,8 @@
+@E=λo.λi.λe.e
+@O=λx.λo.λi.λe.o(x)
+@I=λx.λo.λi.λe.i(x)
+@inc=λn.n(λx.@I(x),λx.@O(@inc(x)),@I(@E))
+@dbl=λn.n(λx.@O(n),λx.@O(n),@E)
+@add=λa.λb.a(λx.b(λy.@O(@add(x,y)),λy.@I(@add(x,y)),@O(x)),λx.b(λy.@I(@add(x,y)),λy.@O(@inc(@add(x,y))),@I(x)),b)
+@mul=λa.λb.a(λx.@dbl(@mul(x,b)),λx.@add(b,@dbl(@mul(x,b))),@E)
+@main=@mul

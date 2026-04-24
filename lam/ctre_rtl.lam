@@ -1,0 +1,4 @@
+@pair = λx.λy.λf.f(x,y)
+@fst = λp.p(λx.λy.x)
+@snd = λp.p(λx.λy.y)
+@main = λt.λn.λl.(λp.@fst(p(@snd(p(λx.x)))))(t(λa.λb.λs.b(s,λy.λu.a(u,λz.λv.@pair(n(z,y),v))),λw.λs.@pair(l(s),w)))

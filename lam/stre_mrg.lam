@@ -1,0 +1,1 @@
+@main=λf.λx.λy.x(λa.λb.y(λc.λd.λn.λl.n(@main(f,a,c),@main(f,b,d)),λc.c),λa.y(λc.λd.c,λc.λn.λl.l(f(a,c))))

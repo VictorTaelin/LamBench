@@ -1,0 +1,6 @@
+@nil=λc.λn.n
+@cons=λh.λt.λc.λn.c(h,t)
+@revgo=λx.λa.x(λh.λt.@revgo(t,@cons(h,a)),a)
+@rev=λx.@revgo(x,@nil)
+@bfs=λq.λr.q(λt.λu.t(λa.λb.@bfs(u,@cons(b,@cons(a,r))),λx.@cons(x,@bfs(u,r))),r(λh.λt.@bfs(@rev(r),@nil),@nil))
+@main=λt.@bfs(@cons(t,@nil),@nil)

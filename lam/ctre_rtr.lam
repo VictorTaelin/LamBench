@@ -1,0 +1,1 @@
+@main = λt.λN.λL.t(λP.λQ.λx.λk.P(x,λp.λa.Q(a,λq.λb.k(N(p,q),b))),λa.λx.λk.k(L(x),a))(t(λa.λb.b,λx.x),λr.λm.r)

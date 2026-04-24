@@ -1,0 +1,3 @@
+@z=λn.n(λp.λt.λf.f,λt.λf.t)
+@m=λa.λb.b(λc.a(λd.@m(d,c),λs.λz.z),a)
+@main=λa.λb.a(λc.b(λd.(@z(@m(a,b)))(@main(a,@m(b,a)),@main(@m(a,b),b)),a),b)

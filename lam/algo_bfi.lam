@@ -1,0 +1,13 @@
+@z=λs.λz.z
+@n=λc.λn.n
+@c=λh.λt.λc.λn.c(h,t)
+@t=λa.λb.λc.λd.λe.λk.k(a,b,c,d,e)
+@r=λx.x(λa.λb.λc.λd.λe.c(λh.λt.@t(h,@c(a,b),t,d,e),@t(@z,@c(a,b),@n,d,e)))
+@l=λx.x(λa.λb.λc.λd.λe.b(λh.λt.@t(h,t,@c(a,c),d,e),@t(@z,@n,@c(a,c),d,e)))
+@i=λx.x(λa.λb.λc.λd.λe.@t(λs.λz.s(a),b,c,d,e))
+@d=λx.x(λa.λb.λc.λd.λe.@t(a(λy.y,@z),b,c,d,e))
+@o=λx.x(λa.λb.λc.λd.λe.@t(a,b,c,d,λu.e(@c(a,u))))
+@g=λx.x(λa.λb.λc.λd.λe.d(λh.λt.@t(h,b,c,t,e),@t(@z,b,c,@n,e)))
+@q=λb.λx.(x(λa.λb.λc.λd.λe.a))(λy.@q(b,@e(b,x)),x)
+@e=λp.λx.p(λh.λt.(h(λy.@e(t,@r(y)),λy.@e(t,@l(y)),λy.@e(t,@i(y)),λy.@e(t,@d(y)),λy.@e(t,@o(y)),λy.@e(t,@g(y)),λb.λy.@e(t,@q(b,y))))(x),x)
+@main=λp.λi.(@e(p,@t(@z,@n,@n,i,λx.x)))(λa.λb.λc.λd.λe.e(@n))

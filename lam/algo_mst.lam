@@ -1,0 +1,14 @@
+@T=λa.λb.a
+@F=λa.λb.b
+@Z=λs.λz.z
+@N=λc.λn.n
+@C=λh.λt.λc.λn.c(h,t)
+@A=λm.λn.m(λp.λs.λz.s(@A(p,n)),n)
+@E=λa.λb.a(λp.b(λq.@E(p,q),@F),b(λq.@F,@T))
+@L=λa.λb.a(λp.b(λq.@L(p,q),@F),b(λq.@T,@F))
+@M=λx.λl.l(λh.λt.@E(x,h)(@T,@M(x,t)),@F)
+@S=λx.λn.λs.s(x)
+@B=λv.λe.λm.e(λu.λw.λx.@M(u,v)(@M(w,v)(@F,@T),@M(w,v)))(m(@S(e),λb.e(λa.λc.λd.b(λx.λy.λz.@L(d,z)))(@S(e),m)),m)
+@G=λv.λl.l(λh.λt.@B(v,h,@G(v,t)),λn.λs.n)
+@K=λk.λv.λr.λl.k(λp.@G(v,l)(r,λe.e(λu.λw.λx.@K(p,@C(@M(u,v)(w,u),v),@A(r,x),l))),r)
+@main=λn.λl.@K(n(λp.p,@Z),@C(@Z,@N),@Z,l)

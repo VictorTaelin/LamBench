@@ -1,0 +1,10 @@
+@e = λo.λi.λe.e
+@o = λx.λo.λi.λe.o(x)
+@i = λx.λo.λi.λe.i(x)
+@t = λx.λy.x
+@f = λx.λy.y
+@h = λx.x(λy.@o(x),λy.@o(x),@e)
+@u = λn.n(λx.@i(x),λx.@o(@u(x)),@i(@e))
+@g = λa.λb.b(λy.a(λx.@g(x,y),λx.@g(x,y),@f),λy.a(λx.(@g(y,x))(@f,@t),λx.@g(x,y),@f),@t)
+@r = λa.λb.b(λy.a(λx.@h(@r(x,y)),λx.@i(@r(x,y)),@e),λy.a(λx.@i(@r(x,@u(y))),λx.@h(@r(x,y)),@e),a)
+@main = λa.λb.(@g(a,b))(@u(@main(@r(a,b),b)),@e)

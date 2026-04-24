@@ -1,0 +1,4 @@
+@a=λm.λn.m(λp.λa.λb.a(@a(p,n)),n)
+@b=λd.λx.λa.x(λh.λt.λv.@b(d,t,@a(a,@main(d,v))),λc.λe.c(a))
+@r=λd.λx.λv.x(λh.λt.@r(d,t,v(@b(d,h,λa.λb.b))),v)
+@main=λd.λv.@r(d,d,v)

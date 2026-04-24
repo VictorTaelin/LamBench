@@ -1,0 +1,2 @@
+@go=λF.λZ.λT.λK.T(λL.λR.@go(F,Z,L,λA.λB.@go(F,B,R,λC.λD.K(λn.λl.n(A,C),D))),λA.K(λn.λl.l(Z),F(Z,A)))
+@main=λF.λZ.λT.@go(F,Z,T,λA.λB.A)

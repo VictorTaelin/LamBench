@@ -1,0 +1,9 @@
+@z=λf.λx.x
+@s=λn.λf.λx.f(n(f,x))
+@p=λn.λf.λx.n(λg.λh.h(g(f)),λu.x,λu.u)
+@sub=λm.λn.n(@p,m)
+@iz=λn.n(λx.λa.λb.b,λa.λb.a)
+@le=λm.λn.@iz(@sub(m,n))
+@mul=λm.λn.λf.m(n(f))
+@r=λn.λk.@le(@mul(@s(k),@s(k)),n)(@r(n,@s(k)),k)
+@main=λn.@r(n,@z)

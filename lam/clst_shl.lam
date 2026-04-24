@@ -1,0 +1,8 @@
+@nil=λc.λn.n
+@pair=λa.λb.λp.p(a,b)
+@fst=λp.p(λa.λb.a)
+@snd=λp.p(λa.λb.b)
+@cons=λh.λt.λc.λn.c(h,t(c,n))
+@tail=λl.@fst(l(λx.λp.@pair(@snd(p),@cons(x,@snd(p))),@pair(@nil,@nil)))
+@head=λl.l(λx.λr.x,@nil)
+@main=λl.λc.λn.(@tail(l))(c,c(@head(l),n))

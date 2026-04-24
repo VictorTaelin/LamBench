@@ -1,0 +1,16 @@
+@Z=λf.λx.x
+@S=λn.λf.λx.f(n(f,x))
+@D=λn.λf.λx.n(f,n(f,x))
+@P=λn.λf.λx.n(λg.λh.h(g(f)),λu.x,λu.u)
+@M=λm.λn.n(@P,m)
+@E=λo.λi.λe.e
+@O=λx.λo.λi.λe.o(x(o,i,e))
+@I=λx.λo.λi.λe.i(x(o,i,e))
+@C=λa.λb.λp.p(a,b)
+@H=λp.p(λa.λb.a)
+@J=λp.p(λa.λb.b)
+@N=λb.@J(b(λp.@C(@O(@H(p)),@I(@H(p))),λp.@C(@I(@H(p)),@O(@J(p))),@C(@E,@I(@E))))
+@U=λn.n(@N,@E)
+@R=λb.b(λr.@D(r),λr.@S(@D(r)),@Z)
+@G=λn.λo.λk.@M(o,n)(λx.λa.λb.b,λa.λb.a)(@G(@M(n,o),@S(@S(o)),@S(k)),k)
+@main=λb.@U(@G(@R(b),@S(@Z),@Z))

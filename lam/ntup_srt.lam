@@ -1,0 +1,6 @@
+@succ = λn.λf.λx.f(n(f,x))
+@z = λf.λx.x
+@i = λk.k(@z,@z)
+@u = λa.λb.b(λk.a(λf.λt.k(f,@succ(t))),λk.a(λf.λt.k(@succ(f),t)))
+@s = λh.λa.λb.h(@u(a,b))
+@main = λn.λU.U(n(@s,λa.a)(@i))(λp.λq.λw.q(λx.x(λr.λe.r),p(λx.x(λr.λe.e),w)))

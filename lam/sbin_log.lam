@@ -1,0 +1,17 @@
+@E=λo.λi.λe.e
+@O=λx.λo.λi.λe.o(x)
+@I=λx.λo.λi.λe.i(x)
+@T=λt.λf.t
+@F=λt.λf.f
+@L=λl.λe.λg.l
+@Q=λl.λe.λg.e
+@G=λl.λe.λg.g
+@S=λn.n(λx.@I(x),λx.@O(@S(x)),@I(@E))
+@P=λn.n(λx.@I(@P(x)),λx.x(λy.@O(x),λy.@O(x),@E),@E)
+@D=λn.n(λx.@O(n),λx.@O(n),@E)
+@C=λa.λb.a(λx.b(λy.@C(x,y),λy.@C(x,y)(@L,@L,@G),@G),λx.b(λy.@C(x,y)(@L,@G,@G),λy.@C(x,y),@G),b(λy.@L,λy.@L,@Q))
+@N=λa.λb.@C(a,b)(@T,@F,@F)
+@H=λa.λb.@C(a,b)(@F,@T,@T)
+@M=λa.λb.a(λx.b(λy.@D(@M(x,y)),λy.@P(@D(@M(x,y))),@O(x)),λx.b(λy.@H(x,y)(@I(@M(x,y)),@E),λy.@D(@M(x,y)),@I(x)),@E)
+@V=λa.λb.@N(a,b)(@E,@S(@V(@M(a,b),b)))
+@main=λa.λb.@N(a,b)(@E,@S(@main(@V(a,b),b)))

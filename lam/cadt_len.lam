@@ -1,0 +1,2 @@
+@h=λl.λk.l(λf.λr.λx.@h(r,λn.k(x(n))),k)
+@main=λd.λv.d(λx.λr.@main(r,v(@h(x,λn.λs.λz.s(n)))),v(λs.λz.z))

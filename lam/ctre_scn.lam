@@ -1,0 +1,1 @@
+@main=λF.λZ.λT.T(λL.λR.λs.λk.L(s,λlt.λs1.R(s1,λrt.λs2.k(λn.λl.n(lt(n,l),rt(n,l)),s2))),λx.λs.λk.k(λn.λl.l(s),F(s,x)))(Z,λt.λs.t)

@@ -1,0 +1,6 @@
+@z=λs.λz.z
+@s=λn.λs.λz.s(n)
+@p=λa.λb.λf.f(a,b)
+@a=λp.p(λx.λy.x)
+@b=λp.p(λx.λy.y)
+@main=λf.λt.@a(t(λl.λr.λi.l(i)(λlt.λli.r(li)(λrt.λri.@p(λn.λl.n(lt(n,l),rt(n,l)),ri))),λx.λi.@p(λn.λl.l(f(i,x)),@s(i)))(@z))

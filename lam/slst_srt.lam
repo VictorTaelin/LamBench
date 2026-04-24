@@ -1,0 +1,6 @@
+@nil=λc.λn.n
+@cons=λh.λt.λc.λn.c(h,t)
+@tru=λa.λb.a
+@fls=λa.λb.b
+@snoc=λs.s(λh.λt.@cons(h,@snoc(t)),@cons(@tru,@nil))
+@main=λs.s(λh.λt.h(@snoc(@main(t)),@cons(@fls,@main(t))),@nil)

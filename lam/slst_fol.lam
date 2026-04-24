@@ -1,0 +1,1 @@
+@main=λf.λz.λl.l(λh.λt.f(h,@main(f,z,t)),z)

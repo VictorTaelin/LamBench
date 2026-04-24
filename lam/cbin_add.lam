@@ -1,0 +1,17 @@
+@Z = λf.λx.x
+@E = λo.λi.λe.e
+@O = λx.λo.λi.λe.o(x(o,i,e))
+@I = λx.λo.λi.λe.i(x(o,i,e))
+@D = λn.λf.λx.n(f,n(f,x))
+@DI = λn.λf.λx.f(n(f,n(f,x)))
+@AD = λm.λn.λf.λx.m(f,n(f,x))
+@P = λx.λy.λs.s(x,y)
+@FS = λp.p(λx.λy.x)
+@SN = λp.p(λx.λy.y)
+@SO = λr.@P(@O(@FS(r)),@I(@FS(r)))
+@SI = λr.@P(@I(@FS(r)),@O(@SN(r)))
+@SB = @P(@E,@I(@E))
+@IB = λb.@SN(b(@SO,@SI,@SB))
+@B2N = λb.b(@D,@DI,@Z)
+@N2B = λn.n(@IB,@E)
+@main = λa.λb.@N2B(@AD(@B2N(a),@B2N(b)))
