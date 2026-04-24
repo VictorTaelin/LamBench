@@ -1,7 +1,7 @@
-import { spawn } from "child_process";
-import { generateText, streamText, type LanguageModel } from "ai";
+import { streamText, type LanguageModel } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
+import { openai } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { xai } from "@ai-sdk/xai";
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
@@ -9,7 +9,13 @@ import { homedir } from "os";
 import { join } from "path";
 import type { Task } from "./check";
 import { load_tasks } from "./check";
-import { REF_DIR, reference_bits, run_task, task_score } from "./check";
+import {
+  LAM_TIMEOUT_MS,
+  REF_DIR,
+  reference_bits,
+  run_task,
+  task_score,
+} from "./check";
 
 const DEFAULT_TASK_TIMEOUT_MS = 3600 * 1000;
 
@@ -25,6 +31,7 @@ type EvalResult = {
   output_path?: string;
   error?: string;
   usage?: unknown;
+  finish_reason?: string;
 };
 
 type EvalModel = {
@@ -240,7 +247,7 @@ function get_model(spec: string): EvalModel {
   validate_model_provider(spec, provider, model_id);
 
   if (provider === "openai") {
-    return { spec, provider, model_id };
+    return { spec, provider, model_id, sdk: openai(model_id) };
   }
   if (provider === "anthropic") {
     return { spec, provider, model_id, sdk: anthropic(model_id) };
@@ -345,16 +352,62 @@ function normalize_anthropic_model(model_id: string): string {
   return aliases[model_id] ?? model_id;
 }
 
-function high_thinking_options() {
+type AnthropicThinkingMode = "adaptive" | "enabled";
+
+function anthropic_supports_adaptive_thinking(model_id: string): boolean {
+  // @ai-sdk/anthropic documents adaptive thinking as supported by Sonnet 4.6,
+  // Opus 4.6, and newer models. 4.5 and earlier need the older
+  // { type: "enabled", budgetTokens } mode.
+  var match = model_id.match(/^claude-(sonnet|opus|haiku)-4-(\d+)/);
+  return match ? Number(match[2]) >= 6 : false;
+}
+
+function anthropic_initial_thinking_mode(
+  model: EvalModel,
+): AnthropicThinkingMode {
+  return anthropic_supports_adaptive_thinking(model.model_id)
+    ? "adaptive"
+    : "enabled";
+}
+
+function anthropic_legacy_thinking_budget(model_id: string): number {
+  // Keep enough room for the final answer while still giving pre-adaptive
+  // Claude models a substantial extended-thinking budget.
+  if (model_id.includes("claude-3-haiku")) return 2048;
+  if (model_id.includes("claude-opus-4-0")) return 16000;
+  if (model_id.includes("claude-opus-4-1")) return 16000;
+  if (model_id.includes("claude-opus-4-")) return 32000;
+  if (model_id.includes("claude-sonnet-4-")) return 32000;
+  if (model_id.includes("claude-haiku-4-")) return 16000;
+  if (model_id.includes("claude-3-7")) return 32000;
+  return 2048;
+}
+
+function high_thinking_options(
+  model: EvalModel,
+  anthropic_mode?: AnthropicThinkingMode,
+) {
+  var anthropic_options = anthropic_mode === "enabled"
+    ? {
+      // Legacy extended thinking for Claude 4.5 and earlier. Do not send
+      // output_config.effort here; older models reject adaptive/output-config
+      // thinking controls but accept an explicit budget.
+      thinking: {
+        type: "enabled",
+        budgetTokens: anthropic_legacy_thinking_budget(model.model_id),
+      },
+    }
+    : {
+      effort: "high",
+      thinking: { type: "adaptive", display: "omitted" },
+    };
+
   return {
     openai: {
       reasoningEffort: "high",
       forceReasoning: true,
     },
-    anthropic: {
-      effort: "high",
-      thinking: { type: "adaptive", display: "omitted" },
-    },
+    anthropic: anthropic_options,
     google: {
       thinkingConfig: { thinkingLevel: "high", includeThoughts: false },
     },
@@ -371,6 +424,31 @@ function high_thinking_options() {
       reasoningEffort: "high",
     },
   };
+}
+
+function max_output_tokens(
+  model: EvalModel,
+  anthropic_mode?: AnthropicThinkingMode,
+): number | undefined {
+  if (model.provider === "anthropic" && anthropic_mode === "enabled") {
+    return anthropic_legacy_thinking_budget(model.model_id) + 4096;
+  }
+
+  // maxOutputTokens: The dedicated SDKs (@ai-sdk/anthropic, @ai-sdk/google,
+  // @ai-sdk/openai, @ai-sdk/xai) set model-aware defaults when maxOutputTokens
+  // is omitted. But @ai-sdk/openai-compatible just sends max_tokens: undefined,
+  // which means the field is omitted and the server applies its own default —
+  // often far too low for reasoning models. We set 131072 for any provider that
+  // uses createOpenAICompatible.
+  var uses_openai_compatible = [
+    "openrouter", "moonshotai", "moonshot", "kimi", "deepseek",
+  ].includes(model.provider);
+  var has_dedicated_sdk =
+    model.provider === "openai" ||
+    model.provider === "anthropic" ||
+    model.provider === "google" ||
+    model.provider === "xai";
+  return (!has_dedicated_sdk || uses_openai_compatible) ? 131072 : undefined;
 }
 
 function extract_submission(text: string): string {
@@ -411,157 +489,57 @@ function summarize_error(error: string): string {
   );
 }
 
-function clean_process_error(
-  cmd: string,
-  stdout: string,
-  stderr: string,
-): string {
-  var text = strip_ansi([stderr, stdout].filter(Boolean).join("\n"));
-  var json_error = extract_json_error(text);
-  if (json_error) return json_error;
+var MAX_RETRIES = 3;
+var RETRY_BACKOFF_MS = 10_000; // 10s, 20s, 30s between retries
 
-  var lines = text.split("\n").map(line => line.trim()).filter(Boolean);
-  var useful = lines.find(line => line.includes("invalid_request_error"));
-  useful ??= lines.find(line => line.includes("not supported"));
-  useful ??= lines.find(line => line.includes("Forbidden"));
-  useful ??= lines.find(line => line.startsWith("ERROR:"));
-  return useful ?? `${cmd} failed`;
+// Transient finish reasons that warrant a retry (network drops, provider
+// errors, etc.) as opposed to "stop" (success) or "length" (token budget
+// exhausted — retrying won't help).
+function is_retryable_finish(reason: string | undefined): boolean {
+  return reason === "error" || reason === "other" || reason === "unknown";
 }
 
-function strip_ansi(text: string): string {
-  return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
-}
-
-function extract_json_error(text: string): string | undefined {
-  var lines = text.split("\n");
-  for (var i = lines.length - 1; i >= 0; i--) {
-    var line = lines[i];
-    var index = line.indexOf("ERROR:");
-    if (index < 0) continue;
-
-    var payload = line.slice(index + "ERROR:".length).trim();
-    if (!payload.startsWith("{")) continue;
-
-    try {
-      var parsed = JSON.parse(payload);
-      var message = json_error_message(parsed);
-      if (message) return message;
-    } catch {
-      // Fall through to the non-JSON cleanup path.
-    }
+function format_unknown_error(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
   }
 }
 
-function json_error_message(value: any): string | undefined {
-  if (typeof value?.detail === "string") return value.detail;
-  if (typeof value?.error?.message === "string") {
-    return value.error.message;
-  }
-  if (typeof value?.message === "string") return value.message;
-  if (typeof value?.error === "string") return value.error;
+function looks_like_adaptive_thinking_error(error: unknown): boolean {
+  var msg = format_unknown_error(error).toLowerCase();
+  return (
+    msg.includes("adaptive") ||
+    (
+      msg.includes("thinking") &&
+      (
+        msg.includes("not supported") ||
+        msg.includes("unsupported") ||
+        msg.includes("invalid") ||
+        msg.includes("unrecognized") ||
+        msg.includes("unknown")
+      )
+    ) ||
+    (
+      msg.includes("output_config") &&
+      (msg.includes("not supported") || msg.includes("unsupported"))
+    )
+  );
 }
 
-function run_process(
-  cmd: string,
-  args: string[],
-  input: string,
-  timeout_ms: number,
-): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    var child = spawn(cmd, args, {
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    var stdout = "";
-    var stderr = "";
-    var timed_out = false;
-    var timer = setTimeout(() => {
-      timed_out = true;
-      child.kill("SIGKILL");
-    }, timeout_ms);
-
-    child.stdout.on("data", data => {
-      stdout += data.toString();
-    });
-    child.stderr.on("data", data => {
-      stderr += data.toString();
-    });
-    child.on("error", error => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.on("close", code => {
-      clearTimeout(timer);
-      if (timed_out) {
-        reject(new Error(`${cmd} timed out after ${timeout_ms}ms`));
-      } else if (code === 0) {
-        resolve({ stdout, stderr });
-      } else {
-        reject(new Error(clean_process_error(cmd, stdout, stderr)));
-      }
-    });
-
-    child.stdin.write(input);
-    child.stdin.end();
-  });
-}
-
-function codex_args(
-  model_id: string,
-  work_dir: string,
-  out_file: string,
-): string[] {
-  return [
-    "exec",
-    "--ephemeral",
-    "--ignore-user-config",
-    "--ignore-rules",
-    "--skip-git-repo-check",
-    "-C",
-    work_dir,
-    "--sandbox",
-    "read-only",
-    "-c",
-    'approval_policy="never"',
-    "-c",
-    'model_reasoning_effort="high"',
-    "--disable",
-    "shell_tool",
-    "--disable",
-    "unified_exec",
-    "--disable",
-    "apps",
-    "--disable",
-    "browser_use",
-    "--disable",
-    "computer_use",
-    "--disable",
-    "plugins",
-    "--disable",
-    "multi_agent",
-    "--disable",
-    "tool_search",
-    "--model",
-    model_id,
-    "--output-last-message",
-    out_file,
-    "-",
-  ];
-}
-
-async function generate_with_codex(
+function should_fallback_anthropic_thinking(
   model: EvalModel,
-  task: Task,
-  prompt: string,
-  out_dir: string,
-  timeout_ms: number,
-): Promise<string> {
-  var work_dir = join(out_dir, "codex", task.id);
-  var out_file = join(work_dir, "last.txt");
-  mkdirSync(work_dir, { recursive: true });
-
-  var args = codex_args(model.model_id, work_dir, out_file);
-  await run_process("codex", args, prompt, timeout_ms);
-  return readFileSync(out_file, "utf-8");
+  mode: AnthropicThinkingMode | undefined,
+  error: unknown,
+): boolean {
+  return (
+    model.provider === "anthropic" &&
+    mode === "adaptive" &&
+    looks_like_adaptive_thinking_error(error)
+  );
 }
 
 async function generate_solution(
@@ -571,40 +549,128 @@ async function generate_solution(
   signal: AbortSignal,
   timeout_ms: number,
   no_reasoning: boolean,
-): Promise<{ text: string; usage?: unknown }> {
+): Promise<{ text: string; usage?: unknown; finish_reason?: string }> {
   var prompt = task_prompt(task);
-
-  if (model.provider === "openai") {
-    var text = await generate_with_codex(
-      model,
-      task,
-      prompt,
-      out_dir,
-      timeout_ms,
-    );
-    return { text };
-  }
 
   if (!model.sdk) {
     throw new Error(`missing SDK model for ${model.spec}`);
   }
 
-  // Use streaming to avoid Node/Bun's 300s default fetch headers/body timeout:
-  // a non-streaming generateText() waits for the full response in one HTTP call,
-  // so reasoning traces longer than 5 minutes die with "The operation timed out.".
-  // Streaming resets the idle timer on each chunk, so long reasoning works.
-  var stream = streamText({
-    model: model.sdk,
-    prompt,
-    abortSignal: signal,
-    timeout: { totalMs: timeout_ms },
-    providerOptions: no_reasoning ? {} : high_thinking_options(),
-  });
+  var anthropic_mode: AnthropicThinkingMode | undefined =
+    !no_reasoning && model.provider === "anthropic"
+      ? anthropic_initial_thinking_mode(model)
+      : undefined;
 
-  var text = await stream.text;
-  var usage = await stream.usage;
+  var last_error: Error | undefined;
+  var last_finish_reason: string | undefined;
+  var last_stream_error: unknown;
 
-  return { text, usage };
+  for (var attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    if (signal.aborted) break;
+
+    // Backoff before retries (not before the first attempt).
+    if (attempt > 1) {
+      var delay_ms = RETRY_BACKOFF_MS * (attempt - 1);
+      console.log(
+        `  ↻ ${task.id} retry ${attempt}/${MAX_RETRIES} in ${delay_ms / 1000}s…`,
+      );
+      await new Promise(resolve => setTimeout(resolve, delay_ms));
+      if (signal.aborted) break;
+    }
+
+    try {
+      // Each attempt gets a fresh timeout_ms budget. Network errors are not
+      // the model's fault, so we don't penalize retries with a shrinking
+      // timer. The outer eval_task timeout (which accounts for MAX_RETRIES)
+      // is the ultimate safety net.
+      var attempt_stream_error: unknown;
+      var stream = streamText({
+        model: model.sdk,
+        prompt,
+        abortSignal: signal,
+        timeout: { totalMs: timeout_ms },
+        maxOutputTokens: max_output_tokens(model, anthropic_mode),
+        providerOptions: no_reasoning
+          ? {}
+          : high_thinking_options(model, anthropic_mode),
+        // The AI SDK's default onError is console.error(error), which dumps
+        // raw provider JSON mid-progress with no task context. Capture it
+        // instead; retry/final error handling below will report the task id.
+        onError: ({ error }) => {
+          attempt_stream_error = error;
+          last_stream_error = error;
+        },
+      });
+
+      var text = await stream.text;
+      var usage = await stream.usage;
+      var finish_reason = await stream.finishReason;
+      last_finish_reason = finish_reason;
+
+      // Got content — return it regardless of finish_reason.
+      if (text.trim() !== "") {
+        return { text, usage, finish_reason };
+      }
+
+      // Empty text: retry if finish_reason suggests a transient failure
+      // (network drop, provider error). Don't retry on "length" (token
+      // budget exhausted) or "stop" (model chose to emit nothing).
+      if (!is_retryable_finish(finish_reason)) {
+        return { text, usage, finish_reason };
+      }
+
+      if (
+        attempt_stream_error &&
+        should_fallback_anthropic_thinking(
+          model,
+          anthropic_mode,
+          attempt_stream_error,
+        )
+      ) {
+        anthropic_mode = "enabled";
+        last_stream_error = undefined;
+        console.log(
+          `  ↻ ${task.id} adaptive thinking unsupported; ` +
+          `retrying with legacy thinking budget ` +
+          `${anthropic_legacy_thinking_budget(model.model_id)}…`,
+        );
+      } else if (attempt < MAX_RETRIES) {
+        var detail = attempt_stream_error
+          ? `: ${format_unknown_error(attempt_stream_error)}`
+          : "";
+        console.log(
+          `  ↻ ${task.id} attempt ${attempt}/${MAX_RETRIES} ` +
+          `empty response (finish_reason=${finish_reason ?? "unknown"})` +
+          `${detail}, retrying…`,
+        );
+      }
+    } catch (e: any) {
+      last_error = e;
+      if (signal.aborted) break;
+      if (should_fallback_anthropic_thinking(model, anthropic_mode, e)) {
+        anthropic_mode = "enabled";
+        last_error = undefined;
+        last_stream_error = undefined;
+        console.log(
+          `  ↻ ${task.id} adaptive thinking unsupported; ` +
+          `retrying with legacy thinking budget ` +
+          `${anthropic_legacy_thinking_budget(model.model_id)}…`,
+        );
+      } else if (attempt < MAX_RETRIES) {
+        console.log(
+          `  ↻ ${task.id} attempt ${attempt}/${MAX_RETRIES} ` +
+          `${format_unknown_error(e)}, retrying…`,
+        );
+      }
+    }
+  }
+
+  // All retries exhausted.
+  if (last_error) throw last_error;
+  if (last_stream_error) {
+    throw new Error(`stream error: ${format_unknown_error(last_stream_error)}`);
+  }
+  return { text: "", finish_reason: last_finish_reason };
 }
 
 function timeout_result(
@@ -642,6 +708,7 @@ async function eval_task_body(
   deadline_ms: number,
   signal: AbortSignal,
   no_reasoning: boolean,
+  timeout_ms: number,
 ): Promise<EvalResult> {
   var raw_path = join(out_dir, task.id + ".txt");
   var lam_path = join(out_dir, task.id + ".lam");
@@ -651,17 +718,33 @@ async function eval_task_body(
     task,
     out_dir,
     signal,
-    remaining_task_ms(deadline_ms),
+    timeout_ms,
     no_reasoning,
   );
   throw_if_aborted(signal);
 
   writeFileSync(raw_path, response.text);
   var submission = extract_submission(response.text);
+
+  // Guard against providers that return empty content with no error. The
+  // Moonshot Kimi run on 2026-04-24 exposed this: with no maxOutputTokens
+  // set, the model burned its whole budget on reasoning and returned an
+  // empty string + finish_reason="length". Without this check, the harness
+  // would write a 0-byte .lam, "run" it, and report misleading want/got
+  // diffs as if the model had submitted a wrong answer.
+  if (submission.trim() === "") {
+    var fr = response.finish_reason;
+    throw new Error(
+      `no submission extracted from model output ` +
+      `(raw_len=${response.text.length}, finish_reason=${fr ?? "unknown"})`,
+    );
+  }
+
   writeFileSync(lam_path, submission);
 
-  var ref = reference_bits(task.id, remaining_task_ms(deadline_ms));
-  var check = run_task(task, submission, ref, { deadline_ms });
+  var check_deadline_ms = Math.min(deadline_ms, Date.now() + LAM_TIMEOUT_MS);
+  var ref = reference_bits(task.id, remaining_task_ms(check_deadline_ms));
+  var check = run_task(task, submission, ref, { deadline_ms: check_deadline_ms });
   var created_reference = false;
 
   if (check.pass && ref === undefined) {
@@ -685,6 +768,7 @@ async function eval_task_body(
     output_path: lam_path,
     error: check.errors[0],
     usage: response.usage,
+    finish_reason: response.finish_reason,
   };
 }
 
@@ -694,15 +778,24 @@ async function eval_task(
   out_dir: string,
   timeout_ms: number,
   no_reasoning: boolean,
+  parent_signal?: AbortSignal,
 ): Promise<EvalResult> {
   var started = Date.now();
   var abort = new AbortController();
+  var abort_from_parent = () => abort.abort(parent_signal?.reason);
+  if (parent_signal?.aborted) abort_from_parent();
+  parent_signal?.addEventListener("abort", abort_from_parent, { once: true });
 
   try {
-    var deadline_ms = started + timeout_ms;
-    var timeout = timeout_result(timeout_ms, abort);
+    // Each retry gets a fresh timeout_ms for the API call, so the total
+    // wall-clock time can be up to MAX_RETRIES * timeout_ms + backoff.
+    // The outer deadline accounts for this so it doesn't kill retries.
+    var max_total_ms = timeout_ms * MAX_RETRIES
+      + RETRY_BACKOFF_MS * MAX_RETRIES * (MAX_RETRIES - 1) / 2;
+    var deadline_ms = started + max_total_ms;
+    var timeout = timeout_result(max_total_ms, abort);
     return await Promise.race([
-      eval_task_body(task, model, out_dir, started, deadline_ms, abort.signal, no_reasoning),
+      eval_task_body(task, model, out_dir, started, deadline_ms, abort.signal, no_reasoning, timeout_ms),
       timeout.promise,
     ]);
   } catch (e: any) {
@@ -717,6 +810,7 @@ async function eval_task(
     };
   } finally {
     timeout?.cancel();
+    parent_signal?.removeEventListener("abort", abort_from_parent);
   }
 }
 
@@ -766,12 +860,13 @@ async function run_pool<T, R>(
   items: T[],
   concurrency: number,
   fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  var results: R[] = new Array(items.length);
+  should_stop: () => boolean = () => false,
+): Promise<(R | undefined)[]> {
+  var results: (R | undefined)[] = new Array(items.length);
   var next = 0;
 
   async function worker() {
-    while (next < items.length) {
+    while (next < items.length && !should_stop()) {
       var index = next++;
       results[index] = await fn(items[index]);
     }
@@ -783,6 +878,51 @@ async function run_pool<T, R>(
   }
   await Promise.all(workers);
   return results;
+}
+
+function write_eval_reports(
+  model: string,
+  filter: string | undefined,
+  concurrency: number,
+  total_tasks: number,
+  started_at: Date,
+  out_dir: string,
+  results: EvalResult[],
+  interrupted: boolean,
+): { report_path: string; text_report_path: string; score: number; pass: number; created_refs: number } {
+  var pass = results.filter(r => r.pass).length;
+  var created_refs = results.filter(r => r.created_reference).length;
+  var score =
+    results.reduce((sum, r) => sum + r.score, 0) /
+    Math.max(total_tasks, 1) *
+    100;
+  var complete = results.length === total_tasks;
+  var report = {
+    model,
+    filter,
+    concurrency,
+    tasks: total_tasks,
+    evaluated_tasks: results.length,
+    complete,
+    interrupted,
+    pass,
+    created_refs,
+    score,
+    results,
+  };
+
+  var report_path = join(out_dir, "report.json");
+  writeFileSync(report_path, JSON.stringify(report, null, 2));
+  var res_dir = join(import.meta.dir, "..", "res");
+  mkdirSync(res_dir, { recursive: true });
+  var text_report_path = join(
+    res_dir,
+    `${report_stamp(started_at)}.${safe_name(model)}.txt`,
+  );
+  var text_report = build_text_report(model, results, score, total_tasks);
+  writeFileSync(text_report_path, text_report);
+
+  return { report_path, text_report_path, score, pass, created_refs };
 }
 
 async function main() {
@@ -812,54 +952,66 @@ async function main() {
   console.log("");
 
   var completed = 0;
-  var results = await run_pool(tasks, args.concurrency, async task => {
-    console.log(`→ ${task.id}`);
-    var result = await eval_task(task, model, out_dir, args.timeout_ms, args.no_reasoning);
-    completed += 1;
-    console.log(`${format_line(result)} (${completed}/${tasks.length})`);
-    return result;
+  var results: EvalResult[] = [];
+  var abort_all = new AbortController();
+  var interrupted = false;
+
+  function save(interrupted_now = interrupted) {
+    return write_eval_reports(
+      args.model,
+      args.filter,
+      args.concurrency,
+      all_tasks.length,
+      started_at,
+      out_dir,
+      results,
+      interrupted_now,
+    );
+  }
+
+  process.once("SIGINT", () => {
+    interrupted = true;
+    abort_all.abort(new Error("interrupted"));
+    var paths = save(true);
+    console.log("");
+    console.log("interrupt received; stopping new tasks and saving partial report…");
+    console.log(`report: ${paths.report_path}`);
+    console.log(`results: ${paths.text_report_path}`);
+    console.log("press Ctrl-C again to exit immediately");
+    process.once("SIGINT", () => process.exit(130));
   });
 
-  var pass = results.filter(r => r.pass).length;
-  var created_refs = results.filter(r => r.created_reference).length;
-  var score =
-    results.reduce((sum, r) => sum + r.score, 0) /
-    Math.max(all_tasks.length, 1) *
-    100;
-  var report = {
-    model: args.model,
-    filter: args.filter,
-    concurrency: args.concurrency,
-    tasks: all_tasks.length,
-    evaluated_tasks: results.length,
-    pass,
-    created_refs,
-    score,
-    results,
-  };
+  await run_pool(
+    tasks,
+    args.concurrency,
+    async task => {
+      console.log(`→ ${task.id}`);
+      var result = await eval_task(
+        task,
+        model,
+        out_dir,
+        args.timeout_ms,
+        args.no_reasoning,
+        abort_all.signal,
+      );
+      completed += 1;
+      results.push(result);
+      console.log(`${format_line(result)} (${completed}/${tasks.length})`);
+      save();
+      return result;
+    },
+    () => abort_all.signal.aborted,
+  );
 
-  var report_path = join(out_dir, "report.json");
-  writeFileSync(report_path, JSON.stringify(report, null, 2));
-  var res_dir = join(import.meta.dir, "..", "res");
-  mkdirSync(res_dir, { recursive: true });
-  var text_report_path = join(
-    res_dir,
-    `${report_stamp(started_at)}.${safe_name(args.model)}.txt`,
-  );
-  var text_report = build_text_report(
-    args.model,
-    results,
-    score,
-    all_tasks.length,
-  );
-  writeFileSync(text_report_path, text_report);
+  var paths = save(interrupted);
 
   console.log("");
-  console.log(`${pass}/${results.length} passed`);
-  console.log(`score: ${score.toFixed(1)}`);
-  console.log(`references created: ${created_refs}`);
-  console.log(`report: ${report_path}`);
-  console.log(`results: ${text_report_path}`);
+  console.log(`${paths.pass}/${results.length} passed`);
+  console.log(`score: ${paths.score.toFixed(1)}`);
+  console.log(`references created: ${paths.created_refs}`);
+  console.log(`report: ${paths.report_path}`);
+  console.log(`results: ${paths.text_report_path}`);
+  if (interrupted) process.exitCode = 130;
 }
 
 if (import.meta.main) {

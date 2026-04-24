@@ -191,13 +191,14 @@ export function run_task(
   options: RunTaskOptions = {},
 ): Result {
   var errors: string[] = [];
+  var deadline_ms = options.deadline_ms ?? Date.now() + LAM_TIMEOUT_MS;
 
   for (var t of task.tests) {
     try {
-      var timeout = remaining_timeout(options.deadline_ms);
+      var timeout = remaining_timeout(deadline_ms);
       var src  = submission + "\n@_ = " + t.expr;
       var got  = lam_run(src, timeout);
-      var want = normalize(t.want, remaining_timeout(options.deadline_ms));
+      var want = normalize(t.want, remaining_timeout(deadline_ms));
       if (got !== want) {
         errors.push(`${t.expr}\nwant: ${want}\n got: ${got}`);
       }
@@ -213,7 +214,7 @@ export function run_task(
 
   if (pass) {
     try {
-      bits  = bin_size(submission, remaining_timeout(options.deadline_ms));
+      bits  = bin_size(submission, remaining_timeout(deadline_ms));
       score = task_score(bits, ref_bits ?? bits);
     } catch (e: any) {
       pass = false;
