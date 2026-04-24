@@ -212,7 +212,7 @@ function generate_html(rankings: RunResult[], tasks: Task[], taskModelMap: Recor
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>λ-bench</title>
+<title>LamBench</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 
@@ -621,10 +621,7 @@ function maxNameLen() {
 
 function renderHeader(lines, n) {
   lines.push(L(n++, ''));
-  lines.push(L(n++, '<span class="h1">λ-bench</span>  <span class="comment">-- Lambda Calculus Benchmark for AI</span>'));
-  lines.push(L(n++, ''));
-  lines.push(L(n++, '<span class="comment">" 120 problems · pure λ-calculus · λ-encodings of nats, lists, trees, ADTs</span>'));
-  lines.push(L(n++, '<span class="comment">" Score = problems solved / 120 · latest run per model</span>'));
+  lines.push(L(n++, '<span class="h1">LamBench</span>  <span class="comment">-- Lambda Calculus Benchmark for AI</span>'));
   lines.push(L(n++, ''));
   return n;
 }
@@ -732,7 +729,7 @@ function renderTersity() {
   var n = 1;
   n = renderHeader(lines, n);
 
-  lines.push(L(n++, '<span class="h2">Tersity</span>  <span class="comment">-- how compact each model\'s solutions are vs the reference</span>'));
+  lines.push(L(n++, '<span class="h2">Tersity</span>  <span class="comment">-- how compact each model\\'s solutions are vs the reference</span>'));
   lines.push(L(n++, ''));
   lines.push(L(n++, '<span class="comment">" Per-task score = ref / (ref + bits)  (failed task = 0)</span>'));
   lines.push(L(n++, '<span class="comment">"   bits = ref      -> 50%   (matches reference)</span>'));
