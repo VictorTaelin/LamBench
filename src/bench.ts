@@ -11,7 +11,7 @@ import type { Task } from "./check";
 import { load_tasks } from "./check";
 import { REF_DIR, reference_bits, run_task, task_score } from "./check";
 
-const DEFAULT_TASK_TIMEOUT_MS = 1200 * 1000;
+const DEFAULT_TASK_TIMEOUT_MS = 1800 * 1000;
 
 type EvalResult = {
   id: string;
@@ -159,7 +159,7 @@ function parse_args(): Args {
 
   var parsed: Args = {
     model: args[0],
-    concurrency: 4,
+    concurrency: 40,
     timeout_ms: DEFAULT_TASK_TIMEOUT_MS,
     no_reasoning: false,
   };
