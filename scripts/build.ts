@@ -731,12 +731,6 @@ function renderTersity() {
 
   lines.push(L(n++, '<span class="h2">Tersity</span>  <span class="comment">-- how compact each model\\'s solutions are vs the reference</span>'));
   lines.push(L(n++, ''));
-  lines.push(L(n++, '<span class="comment">" Per-task score = ref / (ref + bits)  (failed task = 0)</span>'));
-  lines.push(L(n++, '<span class="comment">"   bits = ref      -> 50%   (matches reference)</span>'));
-  lines.push(L(n++, '<span class="comment">"   bits < ref      -> > 50% (more terse than reference)</span>'));
-  lines.push(L(n++, '<span class="comment">"   bits > ref      -> < 50% (more verbose)</span>'));
-  lines.push(L(n++, '<span class="comment">" Model score = mean across all ' + D.tasks.length + ' tasks.</span>'));
-  lines.push(L(n++, ''));
 
   var t = computeTersity();
   var sorted = t.entries.slice().sort(function(a, b){ return b.tersity - a.tersity; });
