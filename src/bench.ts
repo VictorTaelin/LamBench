@@ -145,6 +145,7 @@ function load_keys() {
   set_env("XAI_API_KEY", ["xai.token", "xai_normal.token"]);
   set_env("OPENROUTER_API_KEY", ["openrouter.token"]);
   set_env("MOONSHOT_API_KEY", ["moonshot.token", "kimi.token"]);
+  set_env("DEEPSEEK_API_KEY", ["deepseek.token"]);
 }
 
 function parse_args(): Args {
@@ -269,6 +270,14 @@ function get_model(spec: string): EvalModel {
       baseURL: "https://api.moonshot.ai/v1",
     });
     return { spec, provider, model_id, sdk: moonshot(model_id) };
+  }
+  if (provider === "deepseek") {
+    var deepseek = createOpenAICompatible({
+      name: "deepseek",
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      baseURL: "https://api.deepseek.com",
+    });
+    return { spec, provider, model_id, sdk: deepseek(model_id) };
   }
   return { spec, provider, model_id, sdk: spec };
 }
