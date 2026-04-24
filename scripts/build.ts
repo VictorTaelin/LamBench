@@ -741,18 +741,11 @@ function renderElegance() {
     var barPct = e.passing
       ? Math.max(0, Math.min(100, (e.shorter - barLo) * 100 / (barHi - barLo)))
       : 0;
-    var deltaCls = e.passing
-      ? (e.delta >= 0 ? 'ok' : 'err')
-      : 'dim';
-    var deltaStr = e.passing
-      ? fmtShorter(e.delta)
-      : '  —';
     var line =
       '<span class="func">' + esc(pad(name, maxName + 1)) + '</span>' +
       barHtml(barPct, bw) + ' ' +
       '<span class="num">' + esc(valStr) + '</span> ' +
-      '<span class="dim">(' + rpad(String(e.passing), 3) + '/' + D.tasks.length + ')</span> ' +
-      '<span class="' + deltaCls + '">Δ ' + esc(rpad(deltaStr, 7)) + '</span>';
+      '<span class="dim">(' + rpad(String(e.passing), 3) + '/' + D.tasks.length + ')</span>';
     lines.push(L(n++, line));
   });
 
@@ -760,7 +753,7 @@ function renderElegance() {
   lines.push(L(n++,
     '<span class="comment">" mean: </span>' +
     '<span class="num">' + fmtShorter(t.mean) + '</span>' +
-    '<span class="comment">  shorter than reference · Δ = distance from mean</span>'
+    '<span class="comment">  shorter than reference</span>'
   ));
 
   for (var i=0; i<8; i++) lines.push(tilde());
