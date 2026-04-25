@@ -41,12 +41,15 @@ type EvalModel = {
   sdk?:     LanguageModel;
 };
 
+type ReasoningEffort = "low" | "medium" | "high";
+
 type Args = {
   model: string;
   filter?: string;
   concurrency: number;
   timeout_ms: number;
   no_reasoning: boolean;
+  reasoning_effort: ReasoningEffort;
 };
 
 type TaskProgressUpdate = {
@@ -177,7 +180,7 @@ function parse_args(): Args {
   if (args.length === 0) {
     console.error(
       "usage: bun eval <provider/model> [--filter prefix] " +
-      "[--concurrency n] [--timeout seconds]"
+      "[--concurrency n] [--timeout seconds] [--low|--medium|--high]"
     );
     process.exit(1);
   }
@@ -187,6 +190,7 @@ function parse_args(): Args {
     concurrency: 40,
     timeout_ms: DEFAULT_TASK_TIMEOUT_MS,
     no_reasoning: false,
+    reasoning_effort: "high",
   };
   for (var i = 1; i < args.length; i++) {
     var arg = args[i];
@@ -205,6 +209,17 @@ function parse_args(): Args {
       parsed.timeout_ms = Number(arg.slice("--timeout=".length)) * 1000;
     }
     else if (arg === "--no-reasoning") parsed.no_reasoning = true;
+    else if (arg === "--low") parsed.reasoning_effort = "low";
+    else if (arg === "--medium") parsed.reasoning_effort = "medium";
+    else if (arg === "--high") parsed.reasoning_effort = "high";
+    else if (arg === "--effort") {
+      parsed.reasoning_effort = parse_reasoning_effort(args[++i]);
+    }
+    else if (arg.startsWith("--effort=")) {
+      parsed.reasoning_effort = parse_reasoning_effort(
+        arg.slice("--effort=".length),
+      );
+    }
     else throw new Error(`unknown argument: ${arg}`);
   }
 
@@ -218,6 +233,11 @@ function parse_args(): Args {
   }
   parsed.timeout_ms = Math.floor(parsed.timeout_ms);
   return parsed;
+}
+
+function parse_reasoning_effort(value: string | undefined): ReasoningEffort {
+  if (value === "low" || value === "medium" || value === "high") return value;
+  throw new Error("reasoning effort must be low, medium, or high");
 }
 
 function safe_name(name: string): string {
@@ -387,7 +407,7 @@ function anthropic_initial_thinking_mode(
     : "enabled";
 }
 
-function anthropic_legacy_thinking_budget(model_id: string): number {
+function anthropic_high_legacy_thinking_budget(model_id: string): number {
   // Keep enough room for the final answer while still giving pre-adaptive
   // Claude models a substantial extended-thinking budget.
   if (model_id.includes("claude-3-haiku")) return 2048;
@@ -400,8 +420,19 @@ function anthropic_legacy_thinking_budget(model_id: string): number {
   return 2048;
 }
 
-function high_thinking_options(
+function anthropic_legacy_thinking_budget(
+  model_id: string,
+  effort: ReasoningEffort,
+): number {
+  var high = anthropic_high_legacy_thinking_budget(model_id);
+  if (effort === "high") return high;
+  if (effort === "medium") return Math.max(2048, Math.floor(high / 2));
+  return Math.max(1024, Math.floor(high / 4));
+}
+
+function thinking_options(
   model: EvalModel,
+  effort: ReasoningEffort,
   anthropic_mode?: AnthropicThinkingMode,
 ) {
   var anthropic_options = anthropic_mode === "enabled"
@@ -411,38 +442,38 @@ function high_thinking_options(
       // thinking controls but accept an explicit budget.
       thinking: {
         type: "enabled",
-        budgetTokens: anthropic_legacy_thinking_budget(model.model_id),
+        budgetTokens: anthropic_legacy_thinking_budget(model.model_id, effort),
       },
     }
     : {
-      effort: "high",
+      effort,
       thinking: { type: "adaptive", display: "omitted" },
     };
 
   return {
     openai: {
-      reasoningEffort: "high",
+      reasoningEffort: effort,
       forceReasoning: true,
     },
     anthropic: anthropic_options,
     google: {
-      thinkingConfig: { thinkingLevel: "high", includeThoughts: false },
+      thinkingConfig: { thinkingLevel: effort, includeThoughts: false },
     },
     xai: {
-      reasoningEffort: "high",
+      reasoningEffort: effort,
     },
     openrouter: {
-      reasoningEffort: "high",
+      reasoningEffort: effort,
     },
     moonshotai: {
       thinking: { type: "enabled" },
     },
     deepseek: {
-      reasoningEffort: "high",
+      reasoningEffort: effort,
       thinking: { type: "enabled" },
     },
     openaiCompatible: {
-      reasoningEffort: "high",
+      reasoningEffort: effort,
     },
   };
 }
@@ -450,9 +481,10 @@ function high_thinking_options(
 function max_output_tokens(
   model: EvalModel,
   anthropic_mode?: AnthropicThinkingMode,
+  effort: ReasoningEffort = "high",
 ): number | undefined {
   if (model.provider === "anthropic" && anthropic_mode === "enabled") {
-    return anthropic_legacy_thinking_budget(model.model_id) + 4096;
+    return anthropic_legacy_thinking_budget(model.model_id, effort) + 4096;
   }
 
   // maxOutputTokens: The dedicated SDKs (@ai-sdk/anthropic, @ai-sdk/google,
@@ -653,6 +685,7 @@ async function generate_solution(
   signal: AbortSignal,
   deadline_ms: number,
   no_reasoning: boolean,
+  reasoning_effort: ReasoningEffort,
   progress?: TaskProgress,
 ): Promise<{ text: string; usage?: unknown; finish_reason?: string }> {
   var prompt = task_prompt(task);
@@ -698,10 +731,14 @@ async function generate_solution(
         prompt,
         abortSignal: signal,
         timeout: { totalMs: remaining_ms },
-        maxOutputTokens: max_output_tokens(model, anthropic_mode),
+        maxOutputTokens: max_output_tokens(
+          model,
+          anthropic_mode,
+          reasoning_effort,
+        ),
         providerOptions: no_reasoning
           ? {}
-          : high_thinking_options(model, anthropic_mode),
+          : thinking_options(model, reasoning_effort, anthropic_mode),
         // The AI SDK's default onError is console.error(error), which dumps
         // raw provider JSON mid-progress with no task context. Capture it
         // instead; retry/final error handling below will report the task id.
@@ -754,7 +791,7 @@ async function generate_solution(
         console.log(
           `  ↻ ${task.id} adaptive thinking unsupported; ` +
           `retrying with legacy thinking budget ` +
-          `${anthropic_legacy_thinking_budget(model.model_id)}…`,
+          `${anthropic_legacy_thinking_budget(model.model_id, reasoning_effort)}…`,
         );
         continue;
       }
@@ -797,7 +834,7 @@ async function generate_solution(
         console.log(
           `  ↻ ${task.id} adaptive thinking unsupported; ` +
           `retrying with legacy thinking budget ` +
-          `${anthropic_legacy_thinking_budget(model.model_id)}…`,
+          `${anthropic_legacy_thinking_budget(model.model_id, reasoning_effort)}…`,
         );
         continue;
       }
@@ -864,6 +901,7 @@ async function eval_task_body(
   deadline_ms: number,
   signal: AbortSignal,
   no_reasoning: boolean,
+  reasoning_effort: ReasoningEffort,
   progress?: TaskProgress,
 ): Promise<EvalResult> {
   var raw_path = join(out_dir, task.id + ".txt");
@@ -876,6 +914,7 @@ async function eval_task_body(
     signal,
     deadline_ms,
     no_reasoning,
+    reasoning_effort,
     progress,
   );
   throw_if_aborted(signal);
@@ -937,6 +976,7 @@ async function eval_task(
   out_dir: string,
   timeout_ms: number,
   no_reasoning: boolean,
+  reasoning_effort: ReasoningEffort,
   parent_signal?: AbortSignal,
   progress?: TaskProgress,
 ): Promise<EvalResult> {
@@ -962,6 +1002,7 @@ async function eval_task(
         deadline_ms,
         abort.signal,
         no_reasoning,
+        reasoning_effort,
         progress,
       ),
       timeout.promise,
@@ -1054,6 +1095,7 @@ function write_eval_reports(
   concurrency: number,
   total_tasks: number,
   scheduled_tasks: number,
+  reasoning_effort: ReasoningEffort,
   started_at: Date,
   out_dir: string,
   results: EvalResult[],
@@ -1070,6 +1112,7 @@ function write_eval_reports(
     model,
     filter,
     concurrency,
+    reasoning_effort,
     tasks: total_tasks,
     scheduled_tasks,
     evaluated_tasks: results.length,
@@ -1168,7 +1211,11 @@ async function main() {
   console.log(`tasks: ${tasks.length}/${all_tasks.length}${filter}`);
   console.log(`concurrency: ${args.concurrency}`);
   console.log(`timeout: ${Math.floor(args.timeout_ms / 1000)}s/task`);
-  if (args.no_reasoning) console.log(`reasoning: disabled`);
+  if (args.no_reasoning) {
+    console.log(`reasoning: disabled`);
+  } else {
+    console.log(`reasoning effort: ${args.reasoning_effort}`);
+  }
   console.log(`output: ${out_dir}`);
   console.log("");
 
@@ -1191,6 +1238,7 @@ async function main() {
       args.concurrency,
       all_tasks.length,
       tasks.length,
+      args.reasoning_effort,
       started_at,
       out_dir,
       results,
@@ -1246,6 +1294,7 @@ async function main() {
         out_dir,
         args.timeout_ms,
         args.no_reasoning,
+        args.reasoning_effort,
         abort_all.signal,
         progress,
       );
